@@ -24,7 +24,7 @@ export const CONFIG = {
   CANNON: {
     X_FROM_LEFT: 78,     // 砲台中心を島の上＝数直線の外へ（旧100）
     Y_FROM_RULER: -80,   // 数直線Y座標から大砲中心のオフセット（上方向が負）
-    BLUR_FACTOR: 0.25,   // 誤差率×係数×canvas幅=砲撃ブレ量(px)
+    BLUR_FACTOR: 0.25,   // ※applyBlur撤廃で現在未使用（spec§7で誤差は一本化）。判定に戻さないこと
     DRAG_MIN_PX: 20,     // これ以下のドラッグは無視
     DRAG_MAX_PX: 160,    // これ以上は最大パワーとして扱う
     DRAG_SCALE: 5,       // ドラッグpxをpx/sに変換する倍率

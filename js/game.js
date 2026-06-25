@@ -143,6 +143,8 @@ class Game {
     this._canvas.removeEventListener('touchend', this._handleZoomTap)
     this._numpad.hide()
     this._measuredValue = val
+    // 測量誤差は記録のみ。命中判定には絶対に使わない（誤差源は着水点vs正解の1本＝spec§7）。
+    // applyBlur撤廃後は未使用。将来の表示用に残すが、ここから判定経路へ戻さないこと。
     this._measureError  = calcMeasurementError(val, this._targetValue)
     this._startAim()
   }
