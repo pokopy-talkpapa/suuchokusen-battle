@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>めざせ！すうちょくせんマスター</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a6fa8;
+      touch-action: none;
+    }
+    #game-container {
+      position: relative;
+      width: 100%; height: 100%;
+    }
+    canvas#game-canvas {
+      display: block;
+      width: 100%; height: 100%;
+    }
+    #numpad {
+      position: absolute;
+      right: 12px;
+      bottom: 110px;
+      background: rgba(0,0,0,0.75);
+      border-radius: 12px;
+      padding: 8px;
+      display: none;
+      grid-template-columns: repeat(3, 52px);
+      grid-template-rows: repeat(4, 52px);
+      gap: 6px;
+    }
+    #numpad.visible { display: grid; }
+    #numpad button {
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      background: #2a5a8a;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #numpad button#btn-clear { background: #8a2a2a; }
+    #numpad button#btn-ok    { background: #2a8a4a; }
+    #display-input {
+      position: absolute;
+      right: 12px;
+      bottom: 290px;
+      font-size: 32px;
+      font-weight: bold;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      border-radius: 8px;
+      padding: 4px 12px;
+      min-width: 110px;
+      text-align: right;
+      display: none;
+    }
+    #display-input.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="display-input">---</div>
+    <div id="numpad">
+      <button data-digit="7">7</button>
+      <button data-digit="8">8</button>
+      <button data-digit="9">9</button>
+      <button data-digit="4">4</button>
+      <button data-digit="5">5</button>
+      <button data-digit="6">6</button>
+      <button data-digit="1">1</button>
+      <button data-digit="2">2</button>
+      <button data-digit="3">3</button>
+      <button id="btn-clear">⌫</button>
+      <button data-digit="0">0</button>
+      <button id="btn-ok">OK</button>
+    </div>
+  </div>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
