@@ -83,7 +83,7 @@ class Game {
 
     // ズームタップ登録（捕捉フェーズのみ有効）
     this._canvas.addEventListener('click',    this._handleZoomTap)
-    this._canvas.addEventListener('touchend', this._handleZoomTap)
+    this._canvas.addEventListener('touchend', this._handleZoomTap, { passive: false })
 
     // テンキー設定
     this._numpad.reset()
@@ -98,6 +98,7 @@ class Game {
   }
 
   _handleZoomTap = (e) => {
+    if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
     if (this._zoomLevel >= this._unlock.maxLevel) return // 解放済み最大に達している
 

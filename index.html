@@ -61,6 +61,28 @@
       display: none;
     }
     #display-input.visible { display: block; }
+    #rotate-overlay {
+      position: absolute;
+      inset: 0;
+      background: #0d4f7a;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .rotate-inner { text-align: center; color: #fff; }
+    .rotate-icon {
+      font-size: 72px;
+      animation: rotate-hint 1.6s ease-in-out infinite;
+    }
+    .rotate-text { font-size: 28px; font-weight: bold; margin-top: 16px; }
+    @keyframes rotate-hint {
+      0%, 100% { transform: rotate(-12deg); }
+      50%      { transform: rotate(78deg); }
+    }
+    @media (orientation: portrait) {
+      #rotate-overlay { display: flex; }
+    }
   </style>
 </head>
 <body>
@@ -80,6 +102,12 @@
       <button id="btn-clear">⌫</button>
       <button data-digit="0">0</button>
       <button id="btn-ok">OK</button>
+    </div>
+    <div id="rotate-overlay">
+      <div class="rotate-inner">
+        <div class="rotate-icon">📱</div>
+        <div class="rotate-text">よこむきにしてね</div>
+      </div>
     </div>
   </div>
   <script type="module" src="js/game.js"></script>
