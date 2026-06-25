@@ -31,6 +31,10 @@ class Game {
     this._firedTrajectory = null
     this._landingX        = null
     this._hitResult       = null
+    this._fireStart       = null
+    this._fireDuration    = 700
+    this._resultStart     = null
+    this._resultDuration  = 1800
   }
 
   async start() {
@@ -67,6 +71,10 @@ class Game {
       memo:            (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
                         && (this._phase === 'AIM' || this._phase === 'FIRE'))
                         ? String(this._measuredValue) : null,
+      fireProgress:    (this._phase === 'FIRE' && this._fireStart != null)
+                        ? Math.min(1, (performance.now() - this._fireStart) / this._fireDuration) : null,
+      resultProgress:  (this._phase === 'RESULT' && this._resultStart != null)
+                        ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
     }
   }
 
@@ -90,6 +98,8 @@ class Game {
     this._firedTrajectory = null
     this._landingX        = null
     this._hitResult       = null
+    this._fireStart       = null
+    this._resultStart     = null
 
     // ズームタップ登録（捕捉フェーズのみ有効）
     this._canvas.addEventListener('click',    this._handleZoomTap)
@@ -169,12 +179,23 @@ class Game {
 
     const idealX  = calcLandingX(cannonX, cannonY, shot.power, shot.angleRad,
                                   CONFIG.PHYSICS.GRAVITY, rulerY)
-    this._firedTrajectory = calcTrajectory(
-      cannonX, cannonY, shot.power, shot.angleRad, CONFIG.PHYSICS.GRAVITY
-    )
     this._landingX = idealX !== null ? idealX : (cannonX + 200)
 
-    setTimeout(() => this._showResult(), 600)
+    // 軌跡は着水点（数直線）で打ち切り、最後に正確な着水点を足す
+    const full = calcTrajectory(
+      cannonX, cannonY, shot.power, shot.angleRad, CONFIG.PHYSICS.GRAVITY, 36
+    )
+    const traj = []
+    for (const pt of full) {
+      traj.push(pt)
+      if (pt.y >= rulerY) break
+    }
+    traj.push({ x: this._landingX, y: rulerY })
+    this._firedTrajectory = traj
+
+    // 弾を飛ばすアニメーション時間
+    this._fireStart = performance.now()
+    setTimeout(() => this._showResult(), this._fireDuration)
   }
 
   _showResult() {
@@ -188,7 +209,9 @@ class Game {
     this._unlock.recordHit(isHit)
     this._unlock.save()
 
-    setTimeout(() => this._startMeasure(), 1800)
+    this._fireStart   = null
+    this._resultStart = performance.now()
+    setTimeout(() => this._startMeasure(), this._resultDuration)
   }
 }
 

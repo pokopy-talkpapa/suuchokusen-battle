@@ -26,7 +26,6 @@ export class CannonInput {
   attach(canvas, CONFIG, onFire) {
     this._canvas = canvas
     this._CONFIG = CONFIG
-    const cannonX = CONFIG.CANNON.X_FROM_LEFT
 
     const toCanvasCoord = (clientX, clientY) => {
       const rect = canvas.getBoundingClientRect()
@@ -39,10 +38,9 @@ export class CannonInput {
     const onStart = (e) => {
       const pt = e.touches ? e.touches[0] : e
       const { x, y } = toCanvasCoord(pt.clientX, pt.clientY)
-      if (Math.abs(x - cannonX) < 100) {
-        this._startX = x; this._startY = y
-        this._curX   = x; this._curY   = y
-      }
+      // どこからでも引っ張れる（AIM中はテンキー非表示で画面全体が自由）
+      this._startX = x; this._startY = y
+      this._curX   = x; this._curY   = y
     }
     const onMove = (e) => {
       if (this._startX === null) return

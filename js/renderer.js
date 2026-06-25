@@ -112,19 +112,29 @@ export class Renderer {
       if (isMajor) ctx.fillText(String(value), x, rulerY - tH / 2 - 4)
     })
 
-    // 敵船
+    // 敵船（RESULT＋命中時はグラッと傾いて沈む）
     if (state.showShip) {
       const shipW = CFG.ENEMY.SHIP_WIDTH
       const shipH = CFG.ENEMY.SHIP_HEIGHT
+      const baseTop = rulerY - rulerH / 2 - shipH
+      let sink = 0, rot = 0, alpha = 1
+      if (state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null) {
+        const p = state.resultProgress
+        rot   = p * 1.0                 // 傾き（ラジアン）
+        sink  = p * (shipH + 50)        // 沈み込み
+        alpha = Math.max(0, 1 - p * 0.7)
+      }
+      ctx.save()
+      ctx.globalAlpha = alpha
+      ctx.translate(state.enemyX, baseTop + shipH / 2 + sink)
+      ctx.rotate(rot)
       if (this._imgs['ship-enemy']) {
-        ctx.drawImage(this._imgs['ship-enemy'],
-          state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
+        ctx.drawImage(this._imgs['ship-enemy'], -shipW / 2, -shipH / 2, shipW, shipH)
       } else {
         ctx.fillStyle = '#8b0000'
-        ctx.fillRect(state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
-        ctx.fillStyle = '#ff4444'
-        ctx.fillText('🚢', state.enemyX, rulerY - rulerH / 2 - 20)
+        ctx.fillRect(-shipW / 2, -shipH / 2, shipW, shipH)
       }
+      ctx.restore()
     }
 
     // 霧（AIM/FIRE中に敵船を隠す）
@@ -213,26 +223,44 @@ export class Renderer {
       }
     }
 
-    // 砲弾軌跡（FIRE フェーズ）
-    if (state.firedTrajectory) {
-      ctx.strokeStyle = '#ffaa00'
+    // 砲弾の飛翔（FIRE フェーズ）：軌跡を少しずつ伸ばし、弾を放物線上で動かす
+    if (state.firedTrajectory && state.fireProgress != null) {
+      const traj = state.firedTrajectory
+      const idx  = Math.min(traj.length - 1,
+                            Math.round(state.fireProgress * (traj.length - 1)))
+      // 通過済みの軌跡だけ描く
+      ctx.strokeStyle = 'rgba(255,170,0,0.85)'
       ctx.lineWidth = 3
       ctx.setLineDash([6, 4])
       ctx.beginPath()
-      state.firedTrajectory.forEach((pt, i) => {
-        i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)
-      })
+      for (let i = 0; i <= idx; i++) {
+        i === 0 ? ctx.moveTo(traj[i].x, traj[i].y) : ctx.lineTo(traj[i].x, traj[i].y)
+      }
       ctx.stroke()
       ctx.setLineDash([])
-      const last = state.firedTrajectory[state.firedTrajectory.length - 1]
-      if (this._imgs['cannonball'] && last) {
-        const s = 26
-        ctx.drawImage(this._imgs['cannonball'], last.x - s/2, last.y - s/2, s, s)
+      // 飛んでいる弾（先端）
+      const p = traj[idx]
+      if (p) {
+        const s = 30
+        if (this._imgs['cannonball']) {
+          ctx.drawImage(this._imgs['cannonball'], p.x - s/2, p.y - s/2, s, s)
+        } else {
+          ctx.fillStyle = '#1a1a1a'
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, 9, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
     }
 
     // 着弾エフェクト（RESULT）
     if (state.phase === 'RESULT' && state.landingX !== null) {
+      // 命中の瞬間だけ画面が一瞬光る
+      if (state.hitResult === 'HIT' && state.resultProgress != null && state.resultProgress < 0.18) {
+        const f = (0.18 - state.resultProgress) / 0.18
+        ctx.fillStyle = `rgba(255,255,255,${f * 0.7})`
+        ctx.fillRect(0, 0, cv.width, cv.height)
+      }
       if (this._imgs['splash']) {
         ctx.drawImage(this._imgs['splash'], state.landingX - 30, rulerY - 60, 60, 60)
       } else {
@@ -257,14 +285,21 @@ export class Renderer {
       const cxL = cv.width / 2 - R * 0.82
       const cxR = cv.width / 2 + R * 0.82
 
-      // even-odd で「rect の内側 MINUS 2円の内側」= 円の外側を塗る
+      // 黒い幕を「2円の外側」だけに塗る。clip を2回重ねて
+      // 「左円の外側」∩「右円の外側」を取ると、重なり部分も正しく抜ける（∞型）。
       ctx.save()
-      ctx.fillStyle = 'rgba(10,15,20,0.92)'
       ctx.beginPath()
       ctx.rect(0, 0, cv.width, cv.height)
+      ctx.moveTo(cxL + R, cy)
       ctx.arc(cxL, cy, R, 0, Math.PI * 2)
+      ctx.clip('evenodd')        // = 左円の外側
+      ctx.beginPath()
+      ctx.rect(0, 0, cv.width, cv.height)
+      ctx.moveTo(cxR + R, cy)
       ctx.arc(cxR, cy, R, 0, Math.PI * 2)
-      ctx.fill('evenodd')
+      ctx.clip('evenodd')        // ∩ 右円の外側 = 2円の外側
+      ctx.fillStyle = 'rgba(10,15,20,0.92)'
+      ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.restore()
 
       // 円周の白いにじみ
