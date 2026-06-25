@@ -40,8 +40,8 @@ export function calcTrajectory(cannonX, cannonY, power, angleRad, gravity, steps
 // dragDx, dragDy: 大砲中心からドラッグ終点へのCanvas座標差分
 // 発射方向はドラッグの逆方向
 export function dragToShot(dragDx, dragDy, CONFIG) {
-  const { MAX_POWER, DRAG_SCALE } = CONFIG.PHYSICS
-  const { DRAG_MIN_PX, DRAG_MAX_PX } = CONFIG.CANNON
+  const { MAX_POWER } = CONFIG.PHYSICS
+  const { DRAG_MIN_PX, DRAG_MAX_PX, DRAG_SCALE } = CONFIG.CANNON
   const dragLen = Math.sqrt(dragDx * dragDx + dragDy * dragDy)
   if (dragLen < DRAG_MIN_PX) return { power: 0, angleRad: 0 }
   const clampedLen = Math.min(dragLen, DRAG_MAX_PX)

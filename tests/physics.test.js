@@ -2,10 +2,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { calcLandingX, calcTrajectory, dragToShot } from '../js/physics.js'
+import { CONFIG } from '../js/config.js'
 
+// 実configと同じ構造（DRAG_SCALE は CANNON に置く）でモックする
 const CFG = {
-  PHYSICS: { MAX_POWER: 800, DRAG_SCALE: 5 },
-  CANNON:  { DRAG_MIN_PX: 20, DRAG_MAX_PX: 160 },
+  PHYSICS: { MAX_POWER: 800 },
+  CANNON:  { DRAG_MIN_PX: 20, DRAG_MAX_PX: 160, DRAG_SCALE: 5 },
 }
 
 test('calcLandingX: 右方向に着弾する', () => {
@@ -49,4 +51,10 @@ test('dragToShot: DRAG_MAX_PX超でもMAX_POWERを超えない', () => {
 test('dragToShot: DRAG_MIN_PX未満は power=0', () => {
   const { power } = dragToShot(-10, -5, CFG)
   assert.equal(power, 0)
+})
+test('dragToShot: 実際のCONFIGでpowerが有限値になる（NaN回帰防止）', () => {
+  // DRAG_SCALE の置き場所ズレで power が NaN になっていた不具合の回帰テスト
+  const { power } = dragToShot(-60, -55, CONFIG)
+  assert.ok(Number.isFinite(power), `power が有限値であること (got ${power})`)
+  assert.ok(power > 0)
 })
