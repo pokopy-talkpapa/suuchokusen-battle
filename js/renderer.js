@@ -2,7 +2,7 @@
 import { valueToX, getTicks } from './ruler.js'
 import { calcTrajectory, calcLandingX } from './physics.js'
 
-const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg']
+const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island']
 
 export class Renderer {
   constructor() {
@@ -116,6 +116,14 @@ export class Renderer {
       ctx.fillRect(state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
       ctx.fillStyle = '#ff4444'
       ctx.fillText('🚢', state.enemyX, rulerY - rulerH / 2 - 20)
+    }
+
+    // 島（砲台の足場・数直線の外）
+    const isl = CFG.ISLAND
+    const islTop = rulerY - rulerH / 2 + 6  // 数直線帯の高さに足元を合わせる
+    if (this._imgs['island']) {
+      ctx.drawImage(this._imgs['island'],
+        isl.CENTER_X - isl.WIDTH / 2, islTop - isl.HEIGHT, isl.WIDTH, isl.HEIGHT)
     }
 
     // 大砲

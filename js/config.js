@@ -5,7 +5,7 @@ export const CONFIG = {
     MAX: 1000,
     Y_FROM_BOTTOM: 90,   // 画面下端から数直線帯中心までのpx
     HEIGHT: 56,          // 数直線帯の高さpx
-    MARGIN_X: 80,        // 数直線の左右マージンpx
+    MARGIN_X: 150,       // 数直線の左右マージンpx（島の右側へ・旧80）
   },
   ZOOM: {
     // レベル1（肉眼）：0〜1000全体・1目盛り=100
@@ -22,12 +22,17 @@ export const CONFIG = {
     PREVIEW_RADIUS: 18,  // 着弾予測点の円の半径px
   },
   CANNON: {
-    X_FROM_LEFT: 100,    // 大砲のCanvas X座標
+    X_FROM_LEFT: 78,     // 砲台中心を島の上＝数直線の外へ（旧100）
     Y_FROM_RULER: -80,   // 数直線Y座標から大砲中心のオフセット（上方向が負）
     BLUR_FACTOR: 0.25,   // 誤差率×係数×canvas幅=砲撃ブレ量(px)
     DRAG_MIN_PX: 20,     // これ以下のドラッグは無視
     DRAG_MAX_PX: 160,    // これ以上は最大パワーとして扱う
     DRAG_SCALE: 5,       // ドラッグpxをpx/sに変換する倍率
+  },
+  ISLAND: {
+    CENTER_X: 78,        // 島の中心X（砲台と揃える）
+    WIDTH: 150,
+    HEIGHT: 70,
   },
   TIMER: {
     MEASURE_SEC: 15,     // 測量フェーズの制限時間（秒）
