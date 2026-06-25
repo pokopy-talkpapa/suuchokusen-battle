@@ -106,16 +106,29 @@ export class Renderer {
     })
 
     // 敵船
-    const shipW = CFG.ENEMY.SHIP_WIDTH
-    const shipH = CFG.ENEMY.SHIP_HEIGHT
-    if (this._imgs['ship-enemy']) {
-      ctx.drawImage(this._imgs['ship-enemy'],
-        state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
-    } else {
-      ctx.fillStyle = '#8b0000'
-      ctx.fillRect(state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
-      ctx.fillStyle = '#ff4444'
-      ctx.fillText('🚢', state.enemyX, rulerY - rulerH / 2 - 20)
+    if (state.showShip) {
+      const shipW = CFG.ENEMY.SHIP_WIDTH
+      const shipH = CFG.ENEMY.SHIP_HEIGHT
+      if (this._imgs['ship-enemy']) {
+        ctx.drawImage(this._imgs['ship-enemy'],
+          state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
+      } else {
+        ctx.fillStyle = '#8b0000'
+        ctx.fillRect(state.enemyX - shipW / 2, rulerY - rulerH / 2 - shipH, shipW, shipH)
+        ctx.fillStyle = '#ff4444'
+        ctx.fillText('🚢', state.enemyX, rulerY - rulerH / 2 - 20)
+      }
+    }
+
+    // 霧（AIM/FIRE中に敵船を隠す）
+    if (state.fog > 0) {
+      const fogTop = 0
+      const fogBottom = rulerY - rulerH / 2
+      const grad = ctx.createLinearGradient(0, fogTop, 0, fogBottom)
+      grad.addColorStop(0,   `rgba(255,255,255,${0.92 * state.fog})`)
+      grad.addColorStop(1,   `rgba(255,255,255,${0.78 * state.fog})`)
+      ctx.fillStyle = grad
+      ctx.fillRect(0, fogTop, cv.width, fogBottom - fogTop)
     }
 
     // 島（砲台の足場・数直線の外）

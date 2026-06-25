@@ -57,6 +57,8 @@ class Game {
       landingX:        this._landingX,
       hitResult:       this._hitResult,
       timerRemaining:  this._timerRemaining,
+      showShip:        this._phase === 'MEASURE' || this._phase === 'RESULT',
+      fog:             (this._phase === 'AIM' || this._phase === 'FIRE') ? 1 : 0,
     }
   }
 

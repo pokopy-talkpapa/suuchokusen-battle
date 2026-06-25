@@ -44,7 +44,7 @@ export const CONFIG = {
   },
   ENEMY: {
     X_RATIO: 0.75,       // 敵船のCanvas X座標比率（0〜1）
-    SHIP_WIDTH: 140,
-    SHIP_HEIGHT: 100,
+    SHIP_WIDTH: 104,     // 高さ113 × 0.92（旧140＝横伸びの原因）
+    SHIP_HEIGHT: 113,
   },
 }
