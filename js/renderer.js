@@ -250,12 +250,12 @@ export class Renderer {
       )
     }
 
-    // タイマー（MEASURE フェーズ・上級者のみ）
+    // タイマー（MEASURE フェーズ・上級者のみ）：左上＝テンキー(右上)と重ならない位置
     if (state.phase === 'MEASURE' && state.timerRemaining != null) {
       ctx.font = 'bold 28px sans-serif'
-      ctx.textAlign = 'right'
+      ctx.textAlign = 'left'
       ctx.fillStyle = state.timerRemaining <= 5 ? '#ff4444' : '#ffffff'
-      ctx.fillText(`⏱ ${state.timerRemaining}`, cv.width - 20, 44)
+      ctx.fillText(`⏱ ${state.timerRemaining}`, 20, 44)
     }
   }
 
