@@ -2,7 +2,8 @@
 import { valueToX, getTicks } from './ruler.js'
 import { calcTrajectory, calcLandingX } from './physics.js'
 
-const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island']
+const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
+                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -133,29 +134,37 @@ export class Renderer {
       if (isMajor) ctx.fillText(String(value), x, rulerY - tH / 2 - 4)
     })
 
-    // 敵船（RESULT＋命中時はグラッと傾いて沈む）
+    // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
     if (state.showShip) {
       const shipW = CFG.ENEMY.SHIP_WIDTH
       const shipH = CFG.ENEMY.SHIP_HEIGHT
-      const baseTop = rulerY - rulerH / 2 - shipH
-      let sink = 0, rot = 0, alpha = 1
-      if (state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null) {
+      const centerY = rulerY - rulerH / 2 - shipH / 2
+      const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
+      if (sinking) {
         const p = state.resultProgress
-        rot   = p * 1.0                 // 傾き（ラジアン）
-        sink  = p * (shipH + 50)        // 沈み込み
-        alpha = Math.max(0, 1 - p * 0.7)
-      }
-      ctx.save()
-      ctx.globalAlpha = alpha
-      ctx.translate(state.enemyX, baseTop + shipH / 2 + sink)
-      ctx.rotate(rot)
-      if (this._imgs['ship-enemy']) {
-        ctx.drawImage(this._imgs['ship-enemy'], -shipW / 2, -shipH / 2, shipW, shipH)
+        // 3コマ（傾く→半分沈む→ほぼ沈没）を進行度で切り替え
+        const name = p < 0.4 ? 'ship-sink-1' : (p < 0.75 ? 'ship-sink-2' : 'ship-sink-3')
+        const img  = this._imgs[name]
+        const dW = shipW * 1.9, dH = shipH * 1.9   // 正方コマ（船＋煙＋水しぶきを含む）
+        const alpha = p > 0.85 ? Math.max(0, 1 - (p - 0.85) / 0.15) : 1
+        ctx.save()
+        ctx.globalAlpha = alpha
+        if (img) {
+          // 喫水線が数直線あたりに来るよう少し下げて配置
+          ctx.drawImage(img, state.enemyX - dW / 2, centerY - dH / 2 + shipH * 0.2, dW, dH)
+        } else {
+          ctx.translate(state.enemyX, centerY + p * (shipH + 50))
+          ctx.rotate(p * 1.0)
+          ctx.fillStyle = '#8b0000'
+          ctx.fillRect(-shipW / 2, -shipH / 2, shipW, shipH)
+        }
+        ctx.restore()
+      } else if (this._imgs['ship-enemy']) {
+        ctx.drawImage(this._imgs['ship-enemy'], state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
       } else {
         ctx.fillStyle = '#8b0000'
-        ctx.fillRect(-shipW / 2, -shipH / 2, shipW, shipH)
+        ctx.fillRect(state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
       }
-      ctx.restore()
     }
 
     // 霧（AIM/FIRE中に敵船を隠す）
@@ -276,16 +285,27 @@ export class Renderer {
 
     // 着弾エフェクト（RESULT）
     if (state.phase === 'RESULT' && state.landingX !== null) {
+      const rp = state.resultProgress ?? 0
       // 命中の瞬間だけ画面が一瞬光る
-      if (state.hitResult === 'HIT' && state.resultProgress != null && state.resultProgress < 0.18) {
-        const f = (0.18 - state.resultProgress) / 0.18
+      if (state.hitResult === 'HIT' && rp < 0.18) {
+        const f = (0.18 - rp) / 0.18
         ctx.fillStyle = `rgba(255,255,255,${f * 0.7})`
         ctx.fillRect(0, 0, cv.width, cv.height)
       }
-      if (this._imgs['splash']) {
-        ctx.drawImage(this._imgs['splash'], state.landingX - 30, rulerY - 60, 60, 60)
-      } else {
-        ctx.fillStyle = state.hitResult === 'HIT' ? '#ffdd00' : '#4488ff'
+      if (state.hitResult === 'HIT' && this._imgs['splash']) {
+        // 命中の爆発：序盤に大きく出て、徐々に薄く消える
+        const a = rp < 0.45 ? 1 : Math.max(0, 1 - (rp - 0.45) / 0.3)
+        if (a > 0) {
+          const burst = 130
+          const by = rulerY - rulerH / 2 - CFG.ENEMY.SHIP_HEIGHT * 0.5
+          ctx.save()
+          ctx.globalAlpha = a
+          ctx.drawImage(this._imgs['splash'], state.landingX - burst / 2, by - burst / 2, burst, burst)
+          ctx.restore()
+        }
+      } else if (state.hitResult !== 'HIT') {
+        // はずれ：水しぶき
+        ctx.fillStyle = '#4488ff'
         ctx.beginPath()
         ctx.arc(state.landingX, rulerY, 22, 0, Math.PI * 2)
         ctx.fill()
