@@ -4,6 +4,17 @@ import { calcTrajectory, calcLandingX } from './physics.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island']
 
+// 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y,     x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x,     y + h, r)
+  ctx.arcTo(x,     y + h, x,     y,     r)
+  ctx.arcTo(x,     y,     x + w, y,     r)
+  ctx.closePath()
+}
+
 export class Renderer {
   constructor() {
     this._canvas = null
@@ -63,24 +74,34 @@ export class Renderer {
       ctx.fillRect(0, 0, cv.width, cv.height)
     }
 
-    // タイトル画面
+    // タイトル画面：モードを大きな2ボタンで選ぶ（取り違え防止）
     if (state.phase === 'TITLE') {
-      ctx.fillStyle = 'rgba(0,0,0,0.45)'
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
       ctx.fillRect(0, 0, cv.width, cv.height)
-      ctx.font = 'bold 48px sans-serif'
-      ctx.fillStyle = '#ffdd00'
       ctx.textAlign = 'center'
-      ctx.fillText('めざせ！すうちょくせんマスター', cv.width / 2, cv.height / 2 - 20)
-      ctx.font = '28px sans-serif'
+      ctx.fillStyle = '#ffdd00'
+      ctx.font = 'bold 42px sans-serif'
+      ctx.fillText('めざせ！すうちょくせんマスター', cv.width / 2, 72)
       ctx.fillStyle = '#fff'
-      ctx.fillText('タップしてスタート', cv.width / 2, cv.height / 2 + 40)
-      // モード選択ラベル
-      ctx.font = 'bold 24px sans-serif'
-      ctx.fillStyle = '#aaddff'
-      ctx.textAlign = 'left'
-      ctx.fillText('← しょしんしゃ', 24, cv.height / 2 + 90)
-      ctx.textAlign = 'right'
-      ctx.fillText('じょうきゅう →', cv.width - 24, cv.height / 2 + 90)
+      ctx.font = '22px sans-serif'
+      ctx.fillText('モードを えらんでね', cv.width / 2, 112)
+
+      const bw = Math.min(280, cv.width * 0.38)
+      const bh = 124
+      const by = cv.height * 0.55 - bh / 2
+      const drawBtn = (cx, color, title, sub) => {
+        const x = cx - bw / 2
+        ctx.fillStyle = color
+        roundRectPath(ctx, x, by, bw, bh, 22)
+        ctx.fill()
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 32px sans-serif'
+        ctx.fillText(title, cx, by + 54)
+        ctx.font = '18px sans-serif'
+        ctx.fillText(sub, cx, by + 90)
+      }
+      drawBtn(cv.width * 0.27, '#2e8b57', 'しょしんしゃ', 'じっくり・ヒントあり')
+      drawBtn(cv.width * 0.73, '#c0531f', 'じょうきゅう', 'じかんせいげん・きおく')
       return
     }
 
@@ -301,26 +322,25 @@ export class Renderer {
       ctx.fillStyle = 'rgba(10,15,20,0.92)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.restore()
-
-      // 円周の白いにじみ
-      ctx.save()
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-      ctx.lineWidth = 10
-      ctx.beginPath()
-      ctx.arc(cxL, cy, R, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(cxR, cy, R, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.restore()
+      // ※円周の白いにじみは廃止（中央で2本が重なって白い線に見えるため・ぽこぴぃ指摘）
     }
 
-    // タイマー（MEASURE フェーズ・上級者のみ）：左上＝テンキー(右上)と重ならない位置
+    // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
     if (state.phase === 'MEASURE' && state.timerRemaining != null) {
-      ctx.font = 'bold 28px sans-serif'
+      // タイマー（左上）
+      ctx.font = 'bold 30px sans-serif'
       ctx.textAlign = 'left'
-      ctx.fillStyle = state.timerRemaining <= 5 ? '#ff4444' : '#ffffff'
-      ctx.fillText(`⏱ ${state.timerRemaining}`, 20, 44)
+      ctx.fillStyle = state.timerRemaining <= 5 ? '#ff5555' : '#ffffff'
+      ctx.fillText(`⏱ ${state.timerRemaining}`, 20, 46)
+      // 「読んで覚えたら そらをタップで発射へ」ヒント（上中央）
+      ctx.font = 'bold 22px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+      ctx.lineWidth = 4
+      const hint = 'おぼえたら そらを タップ！'
+      ctx.strokeText(hint, cv.width / 2, 40)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(hint, cv.width / 2, 40)
     }
   }
 

@@ -38,8 +38,10 @@ export const CONFIG = {
     MEASURE_SEC: 15,     // 測量フェーズの制限時間（秒）
   },
   MODES: {
-    beginner: { showMemo: true,  measureTimer: false },
-    expert:   { showMemo: false, measureTimer: true  },
+    // 初級：テンキーで打ち込む・時間制限なし・打った数がメモになる
+    beginner: { showMemo: true,  showNumpad: true,  measureTimer: false },
+    // 上級：テンキー無し・読んで記憶・時間で自動的に発射フェーズへ
+    expert:   { showMemo: false, showNumpad: false, measureTimer: true  },
   },
   UNLOCK: {
     BINOCULARS_STREAK: 3, // 双眼鏡（レベル2）解放に必要な連続命中数

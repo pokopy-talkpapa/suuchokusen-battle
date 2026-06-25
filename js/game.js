@@ -105,27 +105,42 @@ class Game {
     this._canvas.addEventListener('click',    this._handleZoomTap)
     this._canvas.addEventListener('touchend', this._handleZoomTap, { passive: false })
 
-    // テンキー設定
-    this._numpad.reset()
-    this._numpad.show()
-    this._numpad.onSubmit((val) => this._submitMeasure(val))
+    // テンキーは初級のみ（上級は読んで記憶＝入力なし）
+    if (CONFIG.MODES[this._mode].showNumpad) {
+      this._numpad.reset()
+      this._numpad.show()
+      this._numpad.onSubmit((val) => this._submitMeasure(val))
+    } else {
+      this._numpad.hide()
+    }
 
-    // タイマー（上級者のみ）
+    // タイマー（上級のみ）：0になったら自動的に発射フェーズへ
     if (CONFIG.MODES[this._mode].measureTimer) {
       this._timerRemaining = CONFIG.TIMER.MEASURE_SEC
       this._timerInterval = setInterval(() => {
         this._timerRemaining = Math.max(0, this._timerRemaining - 1)
-        if (this._timerRemaining === 0) this._submitMeasure(0)
+        if (this._timerRemaining === 0) this._advanceFromMeasure()
       }, 1000)
     } else {
       this._timerRemaining = null
     }
   }
 
+  // 上級：読んで記憶したら（数直線の外タップ or タイマー0で）発射フェーズへ。
+  // 入力値は持たない＝メモも出さない（記憶だけが頼り）。
+  _advanceFromMeasure() {
+    if (this._phase !== 'MEASURE') return
+    clearInterval(this._timerInterval)
+    this._canvas.removeEventListener('click',    this._handleZoomTap)
+    this._canvas.removeEventListener('touchend', this._handleZoomTap)
+    this._numpad.hide()
+    this._measuredValue = null
+    this._startAim()
+  }
+
   _handleZoomTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
-    if (this._zoomLevel >= this._unlock.maxLevel) return // 解放済み最大に達している
 
     const rect    = this._canvas.getBoundingClientRect()
     const clientX = e.touches ? e.changedTouches[0].clientX : e.clientX
@@ -133,8 +148,13 @@ class Game {
     const rsx     = CONFIG.RULER.MARGIN_X
     const rex     = this._canvas.width - CONFIG.RULER.MARGIN_X
 
-    // 数直線帯の外タップは無視
-    if (x < rsx || x > rex) return
+    // 数直線の外タップ：上級は「読んだ→発射へ」進む合図、初級は無視
+    if (x < rsx || x > rex) {
+      if (!CONFIG.MODES[this._mode].showNumpad) this._advanceFromMeasure()
+      return
+    }
+    // ここから下はズーム（数直線内タップ）
+    if (this._zoomLevel >= this._unlock.maxLevel) return // 解放済み最大に達している
 
     const ratio      = (x - rsx) / (rex - rsx)
     const tappedVal  = CONFIG.RULER.MIN + ratio * (CONFIG.RULER.MAX - CONFIG.RULER.MIN)
