@@ -36,7 +36,7 @@ class Game {
     await this._renderer.init(this._canvas, CONFIG)
     this._renderer.startLoop(() => this._buildState())
     this._canvas.addEventListener('click',    () => this._onTitleTap(), { once: true })
-    this._canvas.addEventListener('touchend', () => this._onTitleTap(), { once: true })
+    this._canvas.addEventListener('touchend', (e) => { e.preventDefault(); this._onTitleTap() }, { once: true, passive: false })
   }
 
   _buildState() {
@@ -121,6 +121,7 @@ class Game {
   }
 
   _submitMeasure(val) {
+    if (this._phase !== 'MEASURE') return
     clearInterval(this._timerInterval)
     this._canvas.removeEventListener('click',    this._handleZoomTap)
     this._canvas.removeEventListener('touchend', this._handleZoomTap)
