@@ -1,8 +1,8 @@
 // js/game.js
 import { CONFIG } from './config.js'
-import { valueToX, getZoomRange } from './ruler.js'
+import { valueToX, xToValue, getZoomRange } from './ruler.js'
 import { calcLandingX, calcTrajectory } from './physics.js'
-import { generateTarget, calcMeasurementError, applyBlur } from './measurement.js'
+import { generateTarget, calcMeasurementError, judgeHit } from './measurement.js'
 import { UnlockState } from './unlock.js'
 import { Numpad } from './numpad.js'
 import { CannonInput } from './cannon.js'
@@ -152,26 +152,20 @@ class Game {
 
     const idealX  = calcLandingX(cannonX, cannonY, shot.power, shot.angleRad,
                                   CONFIG.PHYSICS.GRAVITY, rulerY)
-    const blurredX = idealX !== null
-      ? applyBlur(idealX, this._measureError, this._canvas.width, CONFIG)
-      : cannonX + 200
-
     this._firedTrajectory = calcTrajectory(
       cannonX, cannonY, shot.power, shot.angleRad, CONFIG.PHYSICS.GRAVITY
     )
-    this._landingX = blurredX
+    this._landingX = idealX !== null ? idealX : (cannonX + 200)
 
     setTimeout(() => this._showResult(), 600)
   }
 
   _showResult() {
     this._phase = 'RESULT'
-    const rsx      = CONFIG.RULER.MARGIN_X
-    const rex      = this._canvas.width - CONFIG.RULER.MARGIN_X
-    const targetX  = valueToX(this._targetValue, CONFIG.RULER.MIN, CONFIG.RULER.MAX, rsx, rex)
-    const diffPx   = Math.abs(this._landingX - targetX)
-    const marginPx = (CONFIG.UNLOCK.HIT_MARGIN_VALUE / CONFIG.RULER.MAX) * (rex - rsx)
-    const isHit    = diffPx <= marginPx
+    const rsx = CONFIG.RULER.MARGIN_X
+    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
+    const landingValue = xToValue(this._landingX, CONFIG.RULER.MIN, CONFIG.RULER.MAX, rsx, rex)
+    const isHit = judgeHit(landingValue, this._targetValue, CONFIG.UNLOCK.HIT_MARGIN_VALUE)
 
     this._hitResult = isHit ? 'HIT' : 'MISS'
     this._unlock.recordHit(isHit)

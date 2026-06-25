@@ -1,6 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { generateTarget, calcMeasurementError, applyBlur } from '../js/measurement.js'
+import { generateTarget, calcMeasurementError, judgeHit } from '../js/measurement.js'
+
+test('judgeHit: 差が許容幅以内なら命中', () => {
+  assert.equal(judgeHit(360, 350, 30), true)   // 差10 <= 30
+})
+test('judgeHit: 差が許容幅ちょうどは命中', () => {
+  assert.equal(judgeHit(380, 350, 30), true)   // 差30 <= 30
+})
+test('judgeHit: 差が許容幅超なら外れ', () => {
+  assert.equal(judgeHit(400, 350, 30), false)  // 差50 > 30
+})
 
 test('generateTarget: tickStep=100 で100の倍数を返す', () => {
   for (let i = 0; i < 30; i++) {
@@ -32,20 +42,3 @@ test('calcMeasurementError: 誤差は絶対値', () => {
   assert.equal(calcMeasurementError(320, 300), 20)
 })
 
-const CFG = { CANNON: { BLUR_FACTOR: 0.25 }, RULER: { MIN: 0, MAX: 1000 } }
-
-test('applyBlur: 誤差0ならブレなし', () => {
-  const x = applyBlur(500, 0, 1300, CFG)
-  assert.equal(x, 500)
-})
-test('applyBlur: 誤差あり → ブレが±maxBlur 以内', () => {
-  // 誤差100 / 1000 * 0.25 * 1300 = 32.5px が最大ブレ
-  const maxBlur = (100 / 1000) * 0.25 * 1300
-  const results = Array.from({ length: 200 }, () => applyBlur(500, 100, 1300, CFG))
-  assert.ok(results.every(x => Math.abs(x - 500) <= maxBlur + 0.01))
-})
-test('applyBlur: ランダムなので全部同じにはならない', () => {
-  const results = Array.from({ length: 50 }, () => applyBlur(500, 100, 1300, CFG))
-  const unique = new Set(results.map(x => Math.round(x)))
-  assert.ok(unique.size > 1)
-})
