@@ -1,0 +1,58 @@
+// js/numpad.js
+export class Numpad {
+  constructor() {
+    this._el      = document.getElementById('numpad')
+    this._display = document.getElementById('display-input')
+    this._value   = ''
+    this._onSubmit = null
+    this._bind()
+  }
+
+  _bind() {
+    this._el.addEventListener('click', (e) => {
+      const btn = e.target.closest('button')
+      if (!btn) return
+      if (btn.id === 'btn-clear') {
+        this._value = this._value.slice(0, -1)
+      } else if (btn.id === 'btn-ok') {
+        if (this._value !== '' && this._onSubmit) {
+          this._onSubmit(parseInt(this._value, 10))
+        }
+        return
+      } else {
+        const d = btn.dataset.digit
+        if (d !== undefined && this._value.length < 4) {
+          this._value += d
+        }
+      }
+      this._render()
+    })
+  }
+
+  _render() {
+    this._display.textContent = this._value || '---'
+  }
+
+  show() {
+    this._el.classList.add('visible')
+    this._display.classList.add('visible')
+  }
+
+  hide() {
+    this._el.classList.remove('visible')
+    this._display.classList.remove('visible')
+  }
+
+  reset() {
+    this._value = ''
+    this._render()
+  }
+
+  getValue() {
+    return this._value
+  }
+
+  onSubmit(cb) {
+    this._onSubmit = cb
+  }
+}
