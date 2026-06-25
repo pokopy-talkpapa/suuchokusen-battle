@@ -30,8 +30,8 @@
     #numpad {
       position: absolute;
       z-index: 10;
-      right: 12px;
-      bottom: 110px;
+      right: calc(12px + env(safe-area-inset-right));
+      bottom: calc(110px + env(safe-area-inset-bottom));
       background: rgba(0,0,0,0.75);
       border-radius: 12px;
       padding: 8px;
@@ -56,8 +56,8 @@
     #display-input {
       position: absolute;
       z-index: 11;
-      right: 210px;
-      top: 14px;
+      right: calc(210px + env(safe-area-inset-right));
+      top: calc(14px + env(safe-area-inset-top));
       font-size: 52px;
       font-weight: bold;
       color: #fff;
