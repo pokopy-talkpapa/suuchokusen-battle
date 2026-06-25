@@ -17,6 +17,7 @@ class Game {
     this._unlock      = UnlockState.load(CONFIG)
 
     // ゲームステート
+    this._mode             = 'beginner'
     this._phase           = 'TITLE'
     this._zoomLevel       = 1
     this._zoomMin         = 0
@@ -35,8 +36,11 @@ class Game {
   async start() {
     await this._renderer.init(this._canvas, CONFIG)
     this._renderer.startLoop(() => this._buildState())
-    this._canvas.addEventListener('click',    () => this._onTitleTap(), { once: true })
-    this._canvas.addEventListener('touchend', (e) => { e.preventDefault(); this._onTitleTap() }, { once: true, passive: false })
+    this._canvas.addEventListener('click',    (e) => this._onTitleTap(e.offsetX), { once: true })
+    this._canvas.addEventListener('touchend', (e) => { e.preventDefault()
+      const r = this._canvas.getBoundingClientRect()
+      this._onTitleTap((e.changedTouches[0].clientX - r.left) * (this._canvas.width / r.width))
+    }, { once: true, passive: false })
   }
 
   _buildState() {
@@ -59,11 +63,16 @@ class Game {
       timerRemaining:  this._timerRemaining,
       showShip:        this._phase === 'MEASURE' || this._phase === 'RESULT',
       fog:             (this._phase === 'AIM' || this._phase === 'FIRE') ? 1 : 0,
+      mode:            this._mode,
+      memo:            (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
+                        && (this._phase === 'AIM' || this._phase === 'FIRE'))
+                        ? String(this._measuredValue) : null,
     }
   }
 
-  _onTitleTap() {
+  _onTitleTap(x) {
     if (this._phase !== 'TITLE') return
+    this._mode = (x !== undefined && x > this._canvas.width / 2) ? 'expert' : 'beginner'
     this._startMeasure()
   }
 
@@ -81,7 +90,6 @@ class Game {
     this._firedTrajectory = null
     this._landingX        = null
     this._hitResult       = null
-    this._timerRemaining  = CONFIG.TIMER.MEASURE_SEC
 
     // ズームタップ登録（捕捉フェーズのみ有効）
     this._canvas.addEventListener('click',    this._handleZoomTap)
@@ -92,11 +100,16 @@ class Game {
     this._numpad.show()
     this._numpad.onSubmit((val) => this._submitMeasure(val))
 
-    // タイマー
-    this._timerInterval = setInterval(() => {
-      this._timerRemaining = Math.max(0, this._timerRemaining - 1)
-      if (this._timerRemaining === 0) this._submitMeasure(0)
-    }, 1000)
+    // タイマー（上級者のみ）
+    if (CONFIG.MODES[this._mode].measureTimer) {
+      this._timerRemaining = CONFIG.TIMER.MEASURE_SEC
+      this._timerInterval = setInterval(() => {
+        this._timerRemaining = Math.max(0, this._timerRemaining - 1)
+        if (this._timerRemaining === 0) this._submitMeasure(0)
+      }, 1000)
+    } else {
+      this._timerRemaining = null
+    }
   }
 
   _handleZoomTap = (e) => {

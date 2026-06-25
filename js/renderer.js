@@ -74,6 +74,13 @@ export class Renderer {
       ctx.font = '28px sans-serif'
       ctx.fillStyle = '#fff'
       ctx.fillText('タップしてスタート', cv.width / 2, cv.height / 2 + 40)
+      // モード選択ラベル
+      ctx.font = 'bold 24px sans-serif'
+      ctx.fillStyle = '#aaddff'
+      ctx.textAlign = 'left'
+      ctx.fillText('← しょしんしゃ', 24, cv.height / 2 + 90)
+      ctx.textAlign = 'right'
+      ctx.fillText('じょうきゅう →', cv.width - 24, cv.height / 2 + 90)
       return
     }
 
@@ -129,6 +136,18 @@ export class Renderer {
       grad.addColorStop(1,   `rgba(255,255,255,${0.78 * state.fog})`)
       ctx.fillStyle = grad
       ctx.fillRect(0, fogTop, cv.width, fogBottom - fogTop)
+    }
+
+    // 発射中のメモ（初心者モードのみ）
+    if (state.memo) {
+      ctx.font = 'bold 40px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#ffdd00'
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+      ctx.lineWidth = 6
+      const label = `ねらえ ${state.memo}`
+      ctx.strokeText(label, cv.width / 2, 60)
+      ctx.fillText(label, cv.width / 2, 60)
     }
 
     // 島（砲台の足場・数直線の外）
@@ -231,8 +250,8 @@ export class Renderer {
       )
     }
 
-    // タイマー（MEASURE フェーズ）
-    if (state.phase === 'MEASURE') {
+    // タイマー（MEASURE フェーズ・上級者のみ）
+    if (state.phase === 'MEASURE' && state.timerRemaining != null) {
       ctx.font = 'bold 28px sans-serif'
       ctx.textAlign = 'right'
       ctx.fillStyle = state.timerRemaining <= 5 ? '#ff4444' : '#ffffff'

@@ -37,6 +37,10 @@ export const CONFIG = {
   TIMER: {
     MEASURE_SEC: 15,     // 測量フェーズの制限時間（秒）
   },
+  MODES: {
+    beginner: { showMemo: true,  measureTimer: false },
+    expert:   { showMemo: false, measureTimer: true  },
+  },
   UNLOCK: {
     BINOCULARS_STREAK: 3, // 双眼鏡（レベル2）解放に必要な連続命中数
     TELESCOPE_STREAK: 6,  // 望遠鏡（レベル3）解放に必要な連続命中数
