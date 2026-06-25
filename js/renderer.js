@@ -250,6 +250,36 @@ export class Renderer {
       )
     }
 
+    // 双眼鏡の覗き込みフレーム（MEASURE中）
+    if (state.phase === 'MEASURE') {
+      const cy  = cv.height * 0.46
+      const R   = Math.min(cv.width * 0.30, cv.height * 0.62)
+      const cxL = cv.width / 2 - R * 0.82
+      const cxR = cv.width / 2 + R * 0.82
+
+      // even-odd で「rect の内側 MINUS 2円の内側」= 円の外側を塗る
+      ctx.save()
+      ctx.fillStyle = 'rgba(10,15,20,0.92)'
+      ctx.beginPath()
+      ctx.rect(0, 0, cv.width, cv.height)
+      ctx.arc(cxL, cy, R, 0, Math.PI * 2)
+      ctx.arc(cxR, cy, R, 0, Math.PI * 2)
+      ctx.fill('evenodd')
+      ctx.restore()
+
+      // 円周の白いにじみ
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+      ctx.lineWidth = 10
+      ctx.beginPath()
+      ctx.arc(cxL, cy, R, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(cxR, cy, R, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.restore()
+    }
+
     // タイマー（MEASURE フェーズ・上級者のみ）：左上＝テンキー(右上)と重ならない位置
     if (state.phase === 'MEASURE' && state.timerRemaining != null) {
       ctx.font = 'bold 28px sans-serif'
