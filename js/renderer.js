@@ -1,6 +1,6 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
-import { calcTrajectory } from './physics.js'
+import { calcTrajectory, calcLandingX } from './physics.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg']
 
@@ -138,17 +138,42 @@ export class Renderer {
       ctx.stroke()
     }
 
-    // 着弾予測点（AIM フェーズ）
-    if (state.phase === 'AIM' && state.cannonPreview) {
+    // 着弾予測（AIM フェーズ）：放物線の弧 ＋ 着弾点マーカー
+    if (state.phase === 'AIM' && state.cannonPreview && state.cannonPreview.power > 0) {
       const { power, angleRad } = state.cannonPreview
-      const traj = calcTrajectory(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY)
-      const last = traj[traj.length - 1]
-      ctx.globalAlpha = CFG.PHYSICS.PREVIEW_ALPHA
-      ctx.fillStyle = '#ff6600'
+      // 放物線の弧（数直線に当たるところまで）
+      const traj = calcTrajectory(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, 48)
+      ctx.strokeStyle = '#ff7a00'
+      ctx.lineWidth = 5
+      ctx.lineCap = 'round'
+      ctx.setLineDash([10, 9])
       ctx.beginPath()
-      ctx.arc(last.x, rulerY, CFG.PHYSICS.PREVIEW_RADIUS, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 1
+      let started = false
+      for (const pt of traj) {
+        if (pt.y > rulerY) break // 数直線より下には伸ばさない
+        if (!started) { ctx.moveTo(pt.x, pt.y); started = true }
+        else ctx.lineTo(pt.x, pt.y)
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.lineCap = 'butt'
+
+      // 着弾予測点（数直線上）と ▼ マーカー
+      const landX = calcLandingX(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, rulerY)
+      if (landX !== null) {
+        ctx.globalAlpha = 0.85
+        ctx.fillStyle = '#ff3b00'
+        ctx.beginPath()
+        ctx.arc(landX, rulerY, CFG.PHYSICS.PREVIEW_RADIUS, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        ctx.beginPath()
+        ctx.moveTo(landX - 11, rulerY - rulerH / 2 - 24)
+        ctx.lineTo(landX + 11, rulerY - rulerH / 2 - 24)
+        ctx.lineTo(landX, rulerY - rulerH / 2 - 6)
+        ctx.closePath()
+        ctx.fill()
+      }
     }
 
     // 砲弾軌跡（FIRE フェーズ）
