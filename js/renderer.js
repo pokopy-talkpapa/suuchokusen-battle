@@ -179,20 +179,17 @@ export class Renderer {
       ctx.setLineDash([])
       ctx.lineCap = 'butt'
 
-      // 着弾予測点（数直線上）と ▼ マーカー
+      // 着弾予測点（ボヤけた円のみ・数値なし・▼マーカーなし）
       const landX = calcLandingX(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, rulerY)
       if (landX !== null) {
-        ctx.globalAlpha = 0.85
-        ctx.fillStyle = '#ff3b00'
+        // ボヤけた着水点（位置の印のみ・数値は出さない）
+        const r = CFG.PHYSICS.PREVIEW_RADIUS
+        const g = ctx.createRadialGradient(landX, rulerY, 0, landX, rulerY, r * 1.6)
+        g.addColorStop(0, 'rgba(255,80,0,0.55)')
+        g.addColorStop(1, 'rgba(255,80,0,0)')
+        ctx.fillStyle = g
         ctx.beginPath()
-        ctx.arc(landX, rulerY, CFG.PHYSICS.PREVIEW_RADIUS, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = 1
-        ctx.beginPath()
-        ctx.moveTo(landX - 11, rulerY - rulerH / 2 - 24)
-        ctx.lineTo(landX + 11, rulerY - rulerH / 2 - 24)
-        ctx.lineTo(landX, rulerY - rulerH / 2 - 6)
-        ctx.closePath()
+        ctx.arc(landX, rulerY, r * 1.6, 0, Math.PI * 2)
         ctx.fill()
       }
     }
@@ -208,6 +205,11 @@ export class Renderer {
       })
       ctx.stroke()
       ctx.setLineDash([])
+      const last = state.firedTrajectory[state.firedTrajectory.length - 1]
+      if (this._imgs['cannonball'] && last) {
+        const s = 26
+        ctx.drawImage(this._imgs['cannonball'], last.x - s/2, last.y - s/2, s, s)
+      }
     }
 
     // 着弾エフェクト（RESULT）
