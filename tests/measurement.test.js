@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateTarget, calcMeasurementError, judgeHit } from '../js/measurement.js'
+import { currentStage } from '../js/stage.js'
+import { CONFIG } from '../js/config.js'
 
 test('judgeHit: 差が許容幅以内なら命中', () => {
   assert.equal(judgeHit(360, 350, 30), true)   // 差10 <= 30
@@ -42,3 +44,18 @@ test('calcMeasurementError: 誤差は絶対値', () => {
   assert.equal(calcMeasurementError(320, 300), 20)
 })
 
+test('段階別 hitMargin: 序盤(maxLevel1) は中盤(maxLevel2)より甘い', () => {
+  const easy = currentStage(1, CONFIG).hitMargin
+  const mid  = currentStage(2, CONFIG).hitMargin
+  const hard = currentStage(3, CONFIG).hitMargin
+  assert.ok(easy > mid && mid > hard, `序盤>中盤>上級 (${easy},${mid},${hard})`)
+})
+
+test('judgeHit: 上級 margin では序盤で当たる差が外れになりうる', () => {
+  const target = 340
+  const placed = 340 + 20 // 20ズレ
+  const easy = currentStage(1, CONFIG).hitMargin // 45
+  const hard = currentStage(3, CONFIG).hitMargin // 14
+  assert.equal(judgeHit(placed, target, easy), true)
+  assert.equal(judgeHit(placed, target, hard), false)
+})
