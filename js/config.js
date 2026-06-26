@@ -84,4 +84,14 @@ export const CONFIG = {
     SHIP_WIDTH: 104,     // 高さ113 × 0.92（旧140＝横伸びの原因）
     SHIP_HEIGHT: 113,
   },
+  AIM_PANEL: {
+    MARGIN_X: 60,        // 照準パネル数直線の左右マージンpx
+    HEIGHT: 92,          // パネルPNGの描画高さpx
+    Y_FROM_BOTTOM: 70,   // 画面下端からパネル中心までのpx
+  },
+  NEEDLE: {
+    WIDTH: 6,            // 針の太さpx
+    HEAD_R: 16,          // 針の頭（つまみ）の半径px
+    GRAB_PAD: 40,        // 針をつかめる左右の許容px
+  },
 }
