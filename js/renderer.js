@@ -1,9 +1,8 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
-import { calcTrajectory, calcLandingX } from './physics.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
-                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3']
+                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -207,52 +206,6 @@ export class Renderer {
       ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
       ctx.fill()
     }
-    // ドラッグ中：砲身の向きを線で表示
-    if (state.cannonPreview) {
-      const ang = state.cannonPreview.angleRad
-      ctx.strokeStyle = '#ffaa00'
-      ctx.lineWidth = 8
-      ctx.beginPath()
-      ctx.moveTo(cannonX, cannonY)
-      ctx.lineTo(cannonX + Math.cos(ang) * 60, cannonY - Math.sin(ang) * 60)
-      ctx.stroke()
-    }
-
-    // 着弾予測（AIM フェーズ）：放物線の弧 ＋ 着弾点マーカー
-    if (state.phase === 'AIM' && state.cannonPreview && state.cannonPreview.power > 0) {
-      const { power, angleRad } = state.cannonPreview
-      // 放物線の弧（数直線に当たるところまで）
-      const traj = calcTrajectory(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, 48)
-      ctx.strokeStyle = '#ff7a00'
-      ctx.lineWidth = 5
-      ctx.lineCap = 'round'
-      ctx.setLineDash([10, 9])
-      ctx.beginPath()
-      let started = false
-      for (const pt of traj) {
-        if (pt.y > rulerY) break // 数直線より下には伸ばさない
-        if (!started) { ctx.moveTo(pt.x, pt.y); started = true }
-        else ctx.lineTo(pt.x, pt.y)
-      }
-      ctx.stroke()
-      ctx.setLineDash([])
-      ctx.lineCap = 'butt'
-
-      // 着弾予測点（ボヤけた円のみ・数値なし・▼マーカーなし）
-      const landX = calcLandingX(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, rulerY)
-      if (landX !== null) {
-        // ボヤけた着水点（位置の印のみ・数値は出さない）
-        const r = CFG.PHYSICS.PREVIEW_RADIUS
-        const g = ctx.createRadialGradient(landX, rulerY, 0, landX, rulerY, r * 1.6)
-        g.addColorStop(0, 'rgba(255,80,0,0.55)')
-        g.addColorStop(1, 'rgba(255,80,0,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(landX, rulerY, r * 1.6, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
     // 砲弾の飛翔（FIRE フェーズ）：軌跡を少しずつ伸ばし、弾を放物線上で動かす
     if (state.firedTrajectory && state.fireProgress != null) {
       const traj = state.firedTrajectory
