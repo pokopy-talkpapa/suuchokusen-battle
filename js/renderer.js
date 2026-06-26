@@ -272,30 +272,33 @@ export class Renderer {
       )
     }
 
-    // 双眼鏡の覗き込みフレーム（MEASURE中）
+    // 双眼鏡の覗き込み（MEASURE中）：レンズ外を黒で塞ぎ、その上に枠PNGを重ねる。
     if (state.phase === 'MEASURE') {
       const cy  = cv.height * 0.46
-      const R   = Math.min(cv.width * 0.30, cv.height * 0.62)
+      const R   = Math.min(cv.width * 0.30, cv.height * 0.60)
       const cxL = cv.width / 2 - R * 0.82
       const cxR = cv.width / 2 + R * 0.82
 
-      // 黒い幕を「2円の外側」だけに塗る。clip を2回重ねて
-      // 「左円の外側」∩「右円の外側」を取ると、重なり部分も正しく抜ける（∞型）。
+      // レンズ外（2円の外側）だけ黒幕（evenodd を2回 clip）
       ctx.save()
       ctx.beginPath()
       ctx.rect(0, 0, cv.width, cv.height)
-      ctx.moveTo(cxL + R, cy)
-      ctx.arc(cxL, cy, R, 0, Math.PI * 2)
-      ctx.clip('evenodd')        // = 左円の外側
+      ctx.moveTo(cxL + R, cy); ctx.arc(cxL, cy, R, 0, Math.PI * 2)
+      ctx.clip('evenodd')
       ctx.beginPath()
       ctx.rect(0, 0, cv.width, cv.height)
-      ctx.moveTo(cxR + R, cy)
-      ctx.arc(cxR, cy, R, 0, Math.PI * 2)
-      ctx.clip('evenodd')        // ∩ 右円の外側 = 2円の外側
-      ctx.fillStyle = 'rgba(10,15,20,0.92)'
+      ctx.moveTo(cxR + R, cy); ctx.arc(cxR, cy, R, 0, Math.PI * 2)
+      ctx.clip('evenodd')
+      ctx.fillStyle = 'rgba(10,15,20,0.94)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.restore()
-      // ※円周の白いにじみは廃止（中央で2本が重なって白い線に見えるため・ぽこぴぃ指摘）
+
+      // 双眼鏡の枠PNG（レンズ内透過）を 2円にだいたい合わせて重ねる
+      if (this._imgs['binocular-frame']) {
+        const fw = (cxR - cxL) + R * 2.3
+        const fh = fw * (this._imgs['binocular-frame'].height / this._imgs['binocular-frame'].width)
+        ctx.drawImage(this._imgs['binocular-frame'], cv.width / 2 - fw / 2, cy - fh / 2, fw, fh)
+      }
     }
 
     // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
@@ -314,6 +317,14 @@ export class Renderer {
       ctx.strokeText(hint, cv.width / 2, 40)
       ctx.fillStyle = '#ffffff'
       ctx.fillText(hint, cv.width / 2, 40)
+    }
+
+    // 段階名（右上・常時）
+    if (state.phase === 'MEASURE') {
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.fillText(state.stageName ?? '', cv.width - 20, 32)
     }
   }
 
