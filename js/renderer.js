@@ -177,8 +177,89 @@ export class Renderer {
       ctx.fillRect(0, fogTop, cv.width, fogBottom - fogTop)
     }
 
-    // 発射中のメモ（初心者モードのみ）
-    if (state.memo) {
+    // ── 射撃フェーズ（一人称・手元の照準パネル） ──
+    if (state.phase === 'AIM' && state.aim) {
+      const { sx, ex, y } = state.panelGeom
+      const a = state.aim
+
+      // 一人称の暗い前景（海・遠くの船は見えない）。霧(state.fog)に重ねて下半分を陣地色に。
+      // ※renderer は CONFIG を import しない。設定は CFG(=this._CONFIG) 経由で読む。
+      const horizon = y - CFG.AIM_PANEL.HEIGHT
+      const fg = ctx.createLinearGradient(0, horizon - 80, 0, cv.height)
+      fg.addColorStop(0, 'rgba(20,24,30,0.0)')
+      fg.addColorStop(0.5, 'rgba(20,24,30,0.85)')
+      fg.addColorStop(1, 'rgba(12,15,20,0.98)')
+      ctx.fillStyle = fg
+      ctx.fillRect(0, horizon - 80, cv.width, cv.height - (horizon - 80))
+
+      // 砲口（奥へ向く＝向きだけ見える）。中央やや上に楕円の砲口。
+      ctx.fillStyle = '#1b1b1f'
+      ctx.beginPath()
+      ctx.ellipse(cv.width / 2, horizon - 24, 46, 20, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = '#3a3a42'
+      ctx.lineWidth = 8
+      ctx.stroke()
+
+      // 照準パネル PNG（土台）
+      const ph = CFG.AIM_PANEL.HEIGHT
+      if (this._imgs['aim-panel']) {
+        ctx.drawImage(this._imgs['aim-panel'], sx - 30, y - ph / 2, (ex - sx) + 60, ph)
+      } else {
+        ctx.fillStyle = '#caa05a'
+        roundRectPath(ctx, sx - 30, y - ph / 2, (ex - sx) + 60, ph, 16); ctx.fill()
+      }
+
+      // パネル上の数直線（全体スケール or 上級ズーム窓）
+      ctx.strokeStyle = '#3a2410'
+      ctx.fillStyle   = '#2a1a00'
+      ctx.font = 'bold 13px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke()
+      getTicks(a.panelMin, a.panelMax, a.tickStep).forEach(({ value, isMajor }) => {
+        const tx = valueToX(value, a.panelMin, a.panelMax, sx, ex)
+        const tH = isMajor ? 18 : 9
+        ctx.lineWidth = isMajor ? 2 : 1
+        ctx.beginPath(); ctx.moveTo(tx, y - tH / 2); ctx.lineTo(tx, y + tH / 2); ctx.stroke()
+        if (isMajor) ctx.fillText(String(value), tx, y - tH / 2 - 4)
+      })
+
+      // 針（つまみ）
+      const nx = valueToX(a.needleValue, a.panelMin, a.panelMax, sx, ex)
+      ctx.fillStyle = '#d23b2b'
+      ctx.fillRect(nx - CFG.NEEDLE.WIDTH / 2, y - ph / 2 + 6, CFG.NEEDLE.WIDTH, ph - 12)
+      ctx.beginPath()
+      ctx.arc(nx, y - ph / 2 + 2, CFG.NEEDLE.HEAD_R, 0, Math.PI * 2)
+      ctx.fillStyle = '#e8503c'; ctx.fill()
+      ctx.strokeStyle = '#7a1c12'; ctx.lineWidth = 3; ctx.stroke()
+
+      // メモ（初級のみ＝読んだ数）
+      if (state.memo) {
+        ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'
+        ctx.fillStyle = '#ffdd00'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6
+        const label = `ねらえ ${state.memo}`
+        ctx.strokeText(label, cv.width / 2, 56); ctx.fillText(label, cv.width / 2, 56)
+      }
+
+      // 発射ボタン（右下）※矩形は state.buttonRects（game.js 由来）を使う＝単一の真実
+      const fb = state.buttonRects.fire
+      ctx.fillStyle = '#c0531f'; roundRectPath(ctx, fb.x, fb.y, fb.w, fb.h, 12); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'
+      ctx.fillText('うつ！', fb.x + fb.w / 2, fb.y + 35)
+
+      // ズームボタン（上級のみ・左下）
+      if (state.canZoom && state.buttonRects.zoom) {
+        const zb = state.buttonRects.zoom
+        ctx.fillStyle = a.zoomed ? '#2e8b57' : '#2a5a8a'
+        roundRectPath(ctx, zb.x, zb.y, zb.w, zb.h, 12); ctx.fill()
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 22px sans-serif'
+        ctx.fillText(a.zoomed ? 'もどす' : 'ズーム', zb.x + zb.w / 2, zb.y + 33)
+      }
+    }
+
+    // 発射中のメモ（初心者モードのみ・AIM以外フェーズ）
+    if (state.memo && state.phase !== 'AIM') {
       ctx.font = 'bold 40px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffdd00'
@@ -321,10 +402,12 @@ export class Renderer {
 
     // 段階名（右上・常時）
     if (state.phase === 'MEASURE') {
+      ctx.save()
       ctx.font = 'bold 20px sans-serif'
       ctx.textAlign = 'right'
       ctx.fillStyle = 'rgba(255,255,255,0.85)'
       ctx.fillText(state.stageName ?? '', cv.width - 20, 32)
+      ctx.restore()
     }
   }
 
