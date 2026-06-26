@@ -108,38 +108,49 @@ export class Renderer {
       return
     }
 
-    // 数直線帯
-    if (this._imgs['ruler-bg']) {
-      ctx.drawImage(this._imgs['ruler-bg'], rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-    } else {
-      ctx.fillStyle = '#d4a96a'
-      ctx.fillRect(rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-      ctx.strokeStyle = '#8b5e2a'
-      ctx.lineWidth = 2
-      ctx.strokeRect(rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-    }
+    // 数直線（茶色のシンプルな1本線＋等間隔の縦目盛り。数字は両端だけ・PNG定規は廃止）。
+    // AIM は手元パネルが別の数直線を持つので主数直線は描かない。
+    if (state.phase !== 'AIM') {
+      const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
-    // 目盛り（数字ラベルは「読む」のが芯なので大きく・白フチで高コントラストに）
-    const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
-    ctx.textAlign = 'center'
-    ticks.forEach(({ value, isMajor }) => {
-      const x   = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-      const tH  = isMajor ? 22 : 10
-      ctx.strokeStyle = '#5a3a10'
-      ctx.lineWidth = isMajor ? 3 : 1
+      // 基準線（細い茶色の1本）
+      ctx.strokeStyle = '#3C2415'
+      ctx.lineWidth = 4
       ctx.beginPath()
-      ctx.moveTo(x, rulerY - tH / 2)
-      ctx.lineTo(x, rulerY + tH / 2)
+      ctx.moveTo(rsx, rulerY)
+      ctx.lineTo(rex, rulerY)
       ctx.stroke()
-      if (isMajor) {
-        ctx.font = 'bold 22px sans-serif'
+
+      // 途中の目盛り（数字なし）
+      ctx.textAlign = 'center'
+      ticks.forEach(({ value, isMajor }) => {
+        const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+        const tH = isMajor ? 22 : 12
+        ctx.strokeStyle = '#3C2415'
+        ctx.lineWidth = isMajor ? 3 : 2
+        ctx.beginPath()
+        ctx.moveTo(x, rulerY - tH / 2)
+        ctx.lineTo(x, rulerY + tH / 2)
+        ctx.stroke()
+      })
+
+      // 両端だけ：長い縦線＋数字（最小・最大）。途中に数字を出さない＝「読む」必然を守る。
+      ;[state.zoomMin, state.zoomMax].forEach((value) => {
+        const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+        ctx.strokeStyle = '#3C2415'
         ctx.lineWidth = 5
+        ctx.beginPath()
+        ctx.moveTo(x, rulerY - 30)
+        ctx.lineTo(x, rulerY + 30)
+        ctx.stroke()
+        ctx.font = 'bold 26px sans-serif'
+        ctx.lineWidth = 6
         ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.strokeText(String(value), x, rulerY - tH / 2 - 6)
-        ctx.fillStyle = '#2a1a00'
-        ctx.fillText(String(value), x, rulerY - tH / 2 - 6)
-      }
-    })
+        ctx.strokeText(String(value), x, rulerY - 36)
+        ctx.fillStyle = '#3C2415'
+        ctx.fillText(String(value), x, rulerY - 36)
+      })
+    }
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
     if (state.showShip) {
