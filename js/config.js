@@ -48,6 +48,37 @@ export const CONFIG = {
     TELESCOPE_STREAK: 6,  // 望遠鏡（レベル3）解放に必要な連続命中数
     HIT_MARGIN_VALUE: 30, // 着弾「命中」の許容誤差（value単位、0〜1000スケール）
   },
+  // 段階別パラメータ（序盤→中盤→上級）。maxLevel 1/2/3 に対応。
+  // hitMargin・enemyScale はぽこぴぃ調整前提のデフォルト値。
+  STAGES: [
+    { // 序盤：百だけ。位置記憶OK（やさしい）。敵=大きい船。
+      name: '序盤',
+      measureMode: 'full',     // 測量は 0〜1000 全体（百の目盛り）
+      measureTickStep: 100,
+      targetStep: 100,         // 正解は100の倍数
+      aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
+      hitMargin: 45,
+      enemyScale: 1.25,
+    },
+    { // 中盤：百十まで読む。射撃は百のまま＝内分。敵=小型船。
+      name: '中盤',
+      measureMode: 'hundred',  // 測量は target を含む100窓（十の目盛り）
+      measureTickStep: 10,
+      targetStep: 10,          // 正解は10の倍数
+      aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
+      hitMargin: 28,
+      enemyScale: 0.9,
+    },
+    { // 上級：百十一まで読む。射撃はズーム後も百十まで（一の位は想像）。敵=ドローン相当。
+      name: '上級',
+      measureMode: 'ten',      // 測量は target を含む10窓（一の目盛り）
+      measureTickStep: 1,
+      targetStep: 1,           // 正解は1の倍数
+      aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
+      hitMargin: 14,
+      enemyScale: 0.65,
+    },
+  ],
   ENEMY: {
     X_RATIO: 0.75,       // 敵船のCanvas X座標比率（0〜1）
     SHIP_WIDTH: 104,     // 高さ113 × 0.92（旧140＝横伸びの原因）
