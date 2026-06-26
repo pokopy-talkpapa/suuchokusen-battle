@@ -60,14 +60,16 @@ export class Renderer {
     const rsx    = this._rulerSX()
     const rex    = this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
-    const cannonX = CFG.CANNON.X_FROM_LEFT
-    const cannonY = rulerY + CFG.CANNON.Y_FROM_RULER
 
     ctx.clearRect(0, 0, cv.width, cv.height)
 
-    // 背景
-    if (this._imgs['sea-bg']) {
-      ctx.drawImage(this._imgs['sea-bg'], 0, 0, cv.width, cv.height)
+    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / それ以外=横視点の舞台。
+    const bgName = (state.phase === 'TITLE')          ? 'title-bg'
+                 : (state.phase === 'AIM')            ? 'aim-pov'
+                 : /* MEASURE / FIRE / RESULT */        'stage-bg'
+    const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
+    if (bgImg) {
+      ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
     } else {
       const grad = ctx.createLinearGradient(0, 0, 0, cv.height)
       grad.addColorStop(0, '#87ceeb')
@@ -280,26 +282,6 @@ export class Renderer {
       ctx.restore()
     }
 
-    // 島＋大砲（横視点の足場・砲台）。射撃フェーズは一人称なので横向き大砲は描かない。
-    if (state.phase !== 'AIM') {
-      // 島（砲台の足場・数直線の外）
-      const isl = CFG.ISLAND
-      const islTop = rulerY - rulerH / 2 + 6  // 数直線帯の高さに足元を合わせる
-      if (this._imgs['island']) {
-        ctx.drawImage(this._imgs['island'],
-          isl.CENTER_X - isl.WIDTH / 2, islTop - isl.HEIGHT, isl.WIDTH, isl.HEIGHT)
-      }
-
-      // 大砲
-      if (this._imgs['cannon']) {
-        ctx.drawImage(this._imgs['cannon'], cannonX - 40, cannonY - 30, 80, 60)
-      } else {
-        ctx.fillStyle = '#4a3000'
-        ctx.beginPath()
-        ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
     // 砲弾の飛翔（FIRE）：firedArc を fireProgress まで描き、先端に弾。
     if (state.firedArc && state.fireProgress != null) {
       const arc = state.firedArc
