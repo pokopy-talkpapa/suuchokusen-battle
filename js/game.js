@@ -30,6 +30,7 @@ class Game {
     this._timerInterval   = null
     this._firedArc        = null
     this._landingX        = null
+    this._landingValue    = null
     this._hitResult       = null
     this._fireStart       = null
     this._fireDuration    = 700
