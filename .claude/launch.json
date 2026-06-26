@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "suuchokusen",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server"],
+      "port": 8765,
+      "autoPort": true
+    },
+    {
+      "name": "suuchokusen-v2",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8766"],
+      "port": 8766
+    },
+    {
+      "name": "suuchokusen-binoc",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8767"],
+      "port": 8767,
+      "autoPort": true
+    }
+  ]
+}

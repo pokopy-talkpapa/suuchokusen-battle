@@ -1,9 +1,9 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
-import { calcTrajectory, calcLandingX } from './physics.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
-                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3']
+                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
+                     'stage-bg', 'aim-pov', 'title-bg']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -54,18 +54,22 @@ export class Renderer {
 
   drawFrame(state) {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
-    const rulerY = this._rulerY()
+    // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
+    // それ以外（結果の横視点など）は従来どおり画面下。
+    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.52) : this._rulerY()
     const rsx    = this._rulerSX()
     const rex    = this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
-    const cannonX = CFG.CANNON.X_FROM_LEFT
-    const cannonY = rulerY + CFG.CANNON.Y_FROM_RULER
 
     ctx.clearRect(0, 0, cv.width, cv.height)
 
-    // 背景
-    if (this._imgs['sea-bg']) {
-      ctx.drawImage(this._imgs['sea-bg'], 0, 0, cv.width, cv.height)
+    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / それ以外=横視点の舞台。
+    const bgName = (state.phase === 'TITLE')          ? 'title-bg'
+                 : (state.phase === 'AIM')            ? 'aim-pov'
+                 : /* MEASURE / FIRE / RESULT */        'stage-bg'
+    const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
+    if (bgImg) {
+      ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
     } else {
       const grad = ctx.createLinearGradient(0, 0, 0, cv.height)
       grad.addColorStop(0, '#87ceeb')
@@ -77,7 +81,8 @@ export class Renderer {
 
     // タイトル画面：モードを大きな2ボタンで選ぶ（取り違え防止）
     if (state.phase === 'TITLE') {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      // title-bg のキービジュアルを活かすため暗幕は薄め。文字の可読性はテキスト側のフチで確保。
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffdd00'
@@ -106,38 +111,55 @@ export class Renderer {
       return
     }
 
-    // 数直線帯
-    if (this._imgs['ruler-bg']) {
-      ctx.drawImage(this._imgs['ruler-bg'], rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-    } else {
-      ctx.fillStyle = '#d4a96a'
-      ctx.fillRect(rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-      ctx.strokeStyle = '#8b5e2a'
-      ctx.lineWidth = 2
-      ctx.strokeRect(rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
-    }
+    // 数直線（茶色のシンプルな1本線＋等間隔の縦目盛り。数字は両端だけ・PNG定規は廃止）。
+    // AIM は手元パネルが別の数直線を持つので主数直線は描かない。
+    if (state.phase !== 'AIM') {
+      const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
-    // 目盛り
-    const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
-    ctx.strokeStyle = '#5a3a10'
-    ctx.fillStyle   = '#2a1a00'
-    ctx.font = 'bold 13px sans-serif'
-    ctx.textAlign = 'center'
-    ticks.forEach(({ value, isMajor }) => {
-      const x   = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-      const tH  = isMajor ? 20 : 10
-      ctx.lineWidth = isMajor ? 2 : 1
+      // 基準線（細い茶色の1本）
+      ctx.strokeStyle = '#3C2415'
+      ctx.lineWidth = 4
       ctx.beginPath()
-      ctx.moveTo(x, rulerY - tH / 2)
-      ctx.lineTo(x, rulerY + tH / 2)
+      ctx.moveTo(rsx, rulerY)
+      ctx.lineTo(rex, rulerY)
       ctx.stroke()
-      if (isMajor) ctx.fillText(String(value), x, rulerY - tH / 2 - 4)
-    })
+
+      // 途中の目盛り（数字なし）
+      ctx.textAlign = 'center'
+      ticks.forEach(({ value, isMajor }) => {
+        const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+        const tH = isMajor ? 22 : 12
+        ctx.strokeStyle = '#3C2415'
+        ctx.lineWidth = isMajor ? 3 : 2
+        ctx.beginPath()
+        ctx.moveTo(x, rulerY - tH / 2)
+        ctx.lineTo(x, rulerY + tH / 2)
+        ctx.stroke()
+      })
+
+      // 両端だけ：長い縦線＋数字（最小・最大）。途中に数字を出さない＝「読む」必然を守る。
+      ;[state.zoomMin, state.zoomMax].forEach((value) => {
+        const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+        ctx.strokeStyle = '#3C2415'
+        ctx.lineWidth = 5
+        ctx.beginPath()
+        ctx.moveTo(x, rulerY - 30)
+        ctx.lineTo(x, rulerY + 30)
+        ctx.stroke()
+        ctx.font = 'bold 26px sans-serif'
+        ctx.lineWidth = 6
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeText(String(value), x, rulerY - 36)
+        ctx.fillStyle = '#3C2415'
+        ctx.fillText(String(value), x, rulerY - 36)
+      })
+    }
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
     if (state.showShip) {
-      const shipW = CFG.ENEMY.SHIP_WIDTH
-      const shipH = CFG.ENEMY.SHIP_HEIGHT
+      const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
+      const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
+      const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
       const centerY = rulerY - rulerH / 2 - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
@@ -167,119 +189,87 @@ export class Renderer {
       }
     }
 
-    // 霧（AIM/FIRE中に敵船を隠す）
-    if (state.fog > 0) {
-      const fogTop = 0
-      const fogBottom = rulerY - rulerH / 2
-      const grad = ctx.createLinearGradient(0, fogTop, 0, fogBottom)
-      grad.addColorStop(0,   `rgba(255,255,255,${0.92 * state.fog})`)
-      grad.addColorStop(1,   `rgba(255,255,255,${0.78 * state.fog})`)
-      ctx.fillStyle = grad
-      ctx.fillRect(0, fogTop, cv.width, fogBottom - fogTop)
-    }
+    // ── 射撃フェーズ（一人称 aim-pov 背景の上に手元の照準パネルを置く） ──
+    if (state.phase === 'AIM' && state.aim) {
+      ctx.save()
+      const { sx, ex, y } = state.panelGeom
+      const a = state.aim
 
-    // 発射中のメモ（初心者モードのみ）
-    if (state.memo) {
-      ctx.font = 'bold 40px sans-serif'
+      // 照準パネル PNG（土台）
+      const ph = CFG.AIM_PANEL.HEIGHT
+      if (this._imgs['aim-panel']) {
+        ctx.drawImage(this._imgs['aim-panel'], sx - 30, y - ph / 2, (ex - sx) + 60, ph)
+      } else {
+        ctx.fillStyle = '#caa05a'
+        roundRectPath(ctx, sx - 30, y - ph / 2, (ex - sx) + 60, ph, 16); ctx.fill()
+      }
+
+      // パネル上の数直線（全体スケール or 上級ズーム窓）
+      ctx.strokeStyle = '#3a2410'
+      ctx.fillStyle   = '#2a1a00'
+      ctx.font = 'bold 13px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillStyle = '#ffdd00'
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'
-      ctx.lineWidth = 6
-      const label = `ねらえ ${state.memo}`
-      ctx.strokeText(label, cv.width / 2, 60)
-      ctx.fillText(label, cv.width / 2, 60)
-    }
+      ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke()
+      getTicks(a.panelMin, a.panelMax, a.tickStep).forEach(({ value, isMajor }) => {
+        const tx = valueToX(value, a.panelMin, a.panelMax, sx, ex)
+        const tH = isMajor ? 18 : 9
+        ctx.lineWidth = isMajor ? 2 : 1
+        ctx.beginPath(); ctx.moveTo(tx, y - tH / 2); ctx.lineTo(tx, y + tH / 2); ctx.stroke()
+        if (isMajor) ctx.fillText(String(value), tx, y - tH / 2 - 4)
+      })
 
-    // 島（砲台の足場・数直線の外）
-    const isl = CFG.ISLAND
-    const islTop = rulerY - rulerH / 2 + 6  // 数直線帯の高さに足元を合わせる
-    if (this._imgs['island']) {
-      ctx.drawImage(this._imgs['island'],
-        isl.CENTER_X - isl.WIDTH / 2, islTop - isl.HEIGHT, isl.WIDTH, isl.HEIGHT)
-    }
+      // 針（つまみ）
+      const nx = valueToX(a.needleValue, a.panelMin, a.panelMax, sx, ex)
+      ctx.fillStyle = '#d23b2b'
+      ctx.fillRect(nx - CFG.NEEDLE.WIDTH / 2, y - ph / 2 + 6, CFG.NEEDLE.WIDTH, ph - 12)
+      ctx.beginPath()
+      ctx.arc(nx, y - ph / 2 + 2, CFG.NEEDLE.HEAD_R, 0, Math.PI * 2)
+      ctx.fillStyle = '#e8503c'; ctx.fill()
+      ctx.strokeStyle = '#7a1c12'; ctx.lineWidth = 3; ctx.stroke()
 
-    // 大砲
-    if (this._imgs['cannon']) {
-      ctx.drawImage(this._imgs['cannon'], cannonX - 40, cannonY - 30, 80, 60)
-    } else {
-      ctx.fillStyle = '#4a3000'
-      ctx.beginPath()
-      ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
-      ctx.fill()
-    }
-    // ドラッグ中：砲身の向きを線で表示
-    if (state.cannonPreview) {
-      const ang = state.cannonPreview.angleRad
-      ctx.strokeStyle = '#ffaa00'
-      ctx.lineWidth = 8
-      ctx.beginPath()
-      ctx.moveTo(cannonX, cannonY)
-      ctx.lineTo(cannonX + Math.cos(ang) * 60, cannonY - Math.sin(ang) * 60)
-      ctx.stroke()
-    }
-
-    // 着弾予測（AIM フェーズ）：放物線の弧 ＋ 着弾点マーカー
-    if (state.phase === 'AIM' && state.cannonPreview && state.cannonPreview.power > 0) {
-      const { power, angleRad } = state.cannonPreview
-      // 放物線の弧（数直線に当たるところまで）
-      const traj = calcTrajectory(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, 48)
-      ctx.strokeStyle = '#ff7a00'
-      ctx.lineWidth = 5
-      ctx.lineCap = 'round'
-      ctx.setLineDash([10, 9])
-      ctx.beginPath()
-      let started = false
-      for (const pt of traj) {
-        if (pt.y > rulerY) break // 数直線より下には伸ばさない
-        if (!started) { ctx.moveTo(pt.x, pt.y); started = true }
-        else ctx.lineTo(pt.x, pt.y)
+      // メモ（初級のみ＝読んだ数）
+      if (state.memo) {
+        ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'
+        ctx.fillStyle = '#ffdd00'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6
+        const label = `ねらえ ${state.memo}`
+        ctx.strokeText(label, cv.width / 2, 56); ctx.fillText(label, cv.width / 2, 56)
       }
-      ctx.stroke()
-      ctx.setLineDash([])
-      ctx.lineCap = 'butt'
 
-      // 着弾予測点（ボヤけた円のみ・数値なし・▼マーカーなし）
-      const landX = calcLandingX(cannonX, cannonY, power, angleRad, CFG.PHYSICS.GRAVITY, rulerY)
-      if (landX !== null) {
-        // ボヤけた着水点（位置の印のみ・数値は出さない）
-        const r = CFG.PHYSICS.PREVIEW_RADIUS
-        const g = ctx.createRadialGradient(landX, rulerY, 0, landX, rulerY, r * 1.6)
-        g.addColorStop(0, 'rgba(255,80,0,0.55)')
-        g.addColorStop(1, 'rgba(255,80,0,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(landX, rulerY, r * 1.6, 0, Math.PI * 2)
-        ctx.fill()
+      // 発射ボタン（右下）※矩形は state.buttonRects（game.js 由来）を使う＝単一の真実
+      const fb = state.buttonRects.fire
+      ctx.fillStyle = '#c0531f'; roundRectPath(ctx, fb.x, fb.y, fb.w, fb.h, 12); ctx.fill()
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'
+      ctx.fillText('うつ！', fb.x + fb.w / 2, fb.y + 35)
+
+      // ズームボタン（上級のみ・左下）
+      if (state.canZoom && state.buttonRects.zoom) {
+        const zb = state.buttonRects.zoom
+        ctx.fillStyle = a.zoomed ? '#2e8b57' : '#2a5a8a'
+        roundRectPath(ctx, zb.x, zb.y, zb.w, zb.h, 12); ctx.fill()
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 22px sans-serif'
+        ctx.fillText(a.zoomed ? 'もどす' : 'ズーム', zb.x + zb.w / 2, zb.y + 33)
       }
+      ctx.restore()
     }
 
-    // 砲弾の飛翔（FIRE フェーズ）：軌跡を少しずつ伸ばし、弾を放物線上で動かす
-    if (state.firedTrajectory && state.fireProgress != null) {
-      const traj = state.firedTrajectory
-      const idx  = Math.min(traj.length - 1,
-                            Math.round(state.fireProgress * (traj.length - 1)))
-      // 通過済みの軌跡だけ描く
+    // 砲弾の飛翔（FIRE）：firedArc を fireProgress まで描き、先端に弾。
+    if (state.firedArc && state.fireProgress != null) {
+      const arc = state.firedArc
+      const idx = Math.min(arc.length - 1, Math.round(state.fireProgress * (arc.length - 1)))
       ctx.strokeStyle = 'rgba(255,170,0,0.85)'
       ctx.lineWidth = 3
       ctx.setLineDash([6, 4])
       ctx.beginPath()
       for (let i = 0; i <= idx; i++) {
-        i === 0 ? ctx.moveTo(traj[i].x, traj[i].y) : ctx.lineTo(traj[i].x, traj[i].y)
+        i === 0 ? ctx.moveTo(arc[i].x, arc[i].y) : ctx.lineTo(arc[i].x, arc[i].y)
       }
-      ctx.stroke()
-      ctx.setLineDash([])
-      // 飛んでいる弾（先端）
-      const p = traj[idx]
+      ctx.stroke(); ctx.setLineDash([])
+      const p = arc[idx]
       if (p) {
         const s = 30
-        if (this._imgs['cannonball']) {
-          ctx.drawImage(this._imgs['cannonball'], p.x - s/2, p.y - s/2, s, s)
-        } else {
-          ctx.fillStyle = '#1a1a1a'
-          ctx.beginPath()
-          ctx.arc(p.x, p.y, 9, 0, Math.PI * 2)
-          ctx.fill()
-        }
+        if (this._imgs['cannonball']) ctx.drawImage(this._imgs['cannonball'], p.x - s/2, p.y - s/2, s, s)
+        else { ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill() }
       }
     }
 
@@ -319,30 +309,34 @@ export class Renderer {
       )
     }
 
-    // 双眼鏡の覗き込みフレーム（MEASURE中）
+    // 双眼鏡の覗き込み（MEASURE中）：レンズ外を黒で塞ぎ、その上に枠PNGを重ねる。
     if (state.phase === 'MEASURE') {
-      const cy  = cv.height * 0.46
-      const R   = Math.min(cv.width * 0.30, cv.height * 0.62)
+      // 横視点の舞台に合わせる初期値（実機で詰める）。数直線(MEASURE)は cv.height*0.52。
+      const cy  = Math.round(cv.height * 0.50)
+      const R   = Math.min(cv.width * 0.30, cv.height * 0.58)
       const cxL = cv.width / 2 - R * 0.82
       const cxR = cv.width / 2 + R * 0.82
 
-      // 黒い幕を「2円の外側」だけに塗る。clip を2回重ねて
-      // 「左円の外側」∩「右円の外側」を取ると、重なり部分も正しく抜ける（∞型）。
+      // レンズ外（2円の外側）だけ黒幕（evenodd を2回 clip）
       ctx.save()
       ctx.beginPath()
       ctx.rect(0, 0, cv.width, cv.height)
-      ctx.moveTo(cxL + R, cy)
-      ctx.arc(cxL, cy, R, 0, Math.PI * 2)
-      ctx.clip('evenodd')        // = 左円の外側
+      ctx.moveTo(cxL + R, cy); ctx.arc(cxL, cy, R, 0, Math.PI * 2)
+      ctx.clip('evenodd')
       ctx.beginPath()
       ctx.rect(0, 0, cv.width, cv.height)
-      ctx.moveTo(cxR + R, cy)
-      ctx.arc(cxR, cy, R, 0, Math.PI * 2)
-      ctx.clip('evenodd')        // ∩ 右円の外側 = 2円の外側
-      ctx.fillStyle = 'rgba(10,15,20,0.92)'
+      ctx.moveTo(cxR + R, cy); ctx.arc(cxR, cy, R, 0, Math.PI * 2)
+      ctx.clip('evenodd')
+      ctx.fillStyle = 'rgba(10,15,20,0.94)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.restore()
-      // ※円周の白いにじみは廃止（中央で2本が重なって白い線に見えるため・ぽこぴぃ指摘）
+
+      // 双眼鏡の枠PNG（レンズ内透過）を 2円にだいたい合わせて重ねる
+      if (this._imgs['binocular-frame']) {
+        const fw = (cxR - cxL) + R * 2.3
+        const fh = fw * (this._imgs['binocular-frame'].height / this._imgs['binocular-frame'].width)
+        ctx.drawImage(this._imgs['binocular-frame'], cv.width / 2 - fw / 2, cy - fh / 2, fw, fh)
+      }
     }
 
     // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
@@ -361,6 +355,16 @@ export class Renderer {
       ctx.strokeText(hint, cv.width / 2, 40)
       ctx.fillStyle = '#ffffff'
       ctx.fillText(hint, cv.width / 2, 40)
+    }
+
+    // 段階名（右上・常時）
+    if (state.phase === 'MEASURE') {
+      ctx.save()
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.fillText(state.stageName ?? '', cv.width - 20, 32)
+      ctx.restore()
     }
   }
 

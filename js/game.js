@@ -1,35 +1,36 @@
 // js/game.js
 import { CONFIG } from './config.js'
-import { valueToX, xToValue, getZoomRange } from './ruler.js'
-import { calcLandingX, calcTrajectory } from './physics.js'
-import { generateTarget, calcMeasurementError, judgeHit } from './measurement.js'
+import { valueToX, getMeasureWindow } from './ruler.js'
+import { arcPoints } from './physics.js'
+import { generateTarget, judgeHit } from './measurement.js'
 import { UnlockState } from './unlock.js'
 import { Numpad } from './numpad.js'
-import { CannonInput } from './cannon.js'
+import { AimInput } from './aim.js'
 import { Renderer } from './renderer.js'
+import { currentStage, stageIndexFromMaxLevel } from './stage.js'
 
 class Game {
   constructor() {
-    this._canvas      = document.getElementById('game-canvas')
-    this._renderer    = new Renderer()
-    this._numpad      = new Numpad()
-    this._cannonInput = new CannonInput()
-    this._unlock      = UnlockState.load(CONFIG)
+    this._canvas   = document.getElementById('game-canvas')
+    this._renderer = new Renderer()
+    this._numpad   = new Numpad()
+    this._aimInput = new AimInput()
+    this._unlock   = UnlockState.load(CONFIG)
 
-    // ゲームステート
-    this._mode             = 'beginner'
+    this._mode            = 'beginner'
     this._phase           = 'TITLE'
-    this._zoomLevel       = 1
+    this._stage           = CONFIG.STAGES[0]
+    this._stageIndex      = 0
     this._zoomMin         = 0
     this._zoomMax         = 1000
-    this._tickStep        = CONFIG.ZOOM.LEVEL1.tickStep
+    this._tickStep        = 100
     this._targetValue     = 0
     this._measuredValue   = null
-    this._measureError    = 0
-    this._timerRemaining  = CONFIG.TIMER.MEASURE_SEC
+    this._timerRemaining  = null
     this._timerInterval   = null
-    this._firedTrajectory = null
+    this._firedArc        = null
     this._landingX        = null
+    this._landingValue    = null
     this._hitResult       = null
     this._fireStart       = null
     this._fireDuration    = 700
@@ -48,34 +49,51 @@ class Game {
   }
 
   _buildState() {
-    const rulerY  = this._canvas.height - CONFIG.RULER.Y_FROM_BOTTOM
-    const rsx     = CONFIG.RULER.MARGIN_X
-    const rex     = this._canvas.width - CONFIG.RULER.MARGIN_X
-    const enemyX  = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
+    const rsx = CONFIG.RULER.MARGIN_X
+    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
+    const enemyX = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
+
+    const panelGeom = this._panelGeom()
+    const aimState  = (this._phase === 'AIM') ? this._aimInput.getState() : null
 
     return {
-      phase:           this._phase,
-      zoomMin:         this._zoomMin,
-      zoomMax:         this._zoomMax,
-      tickStep:        this._tickStep,
-      targetValue:     this._targetValue,
+      phase:          this._phase,
+      zoomMin:        this._zoomMin,
+      zoomMax:        this._zoomMax,
+      tickStep:       this._tickStep,
+      targetValue:    this._targetValue,
       enemyX,
-      cannonPreview:   this._phase === 'AIM' ? this._cannonInput.getPreview() : null,
-      firedTrajectory: this._firedTrajectory,
-      landingX:        this._landingX,
-      hitResult:       this._hitResult,
-      timerRemaining:  this._timerRemaining,
-      showShip:        this._phase === 'MEASURE' || this._phase === 'RESULT',
-      fog:             (this._phase === 'AIM' || this._phase === 'FIRE') ? 1 : 0,
-      mode:            this._mode,
-      memo:            (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
-                        && (this._phase === 'AIM' || this._phase === 'FIRE'))
-                        ? String(this._measuredValue) : null,
-      fireProgress:    (this._phase === 'FIRE' && this._fireStart != null)
+      stageIndex:     this._stageIndex,
+      stageName:      this._stage.name,
+      // 測量で船を見せるのは「窓の中だけ」。RESULT は横視点で正解位置に船を出す（リール無し＝次は別の的）。
+      showShip:       this._phase === 'MEASURE' || this._phase === 'RESULT',
+      // 敵船は showShip(MEASURE/RESULT のみ)で制御し、AIM/FIRE は一人称/横視点の背景が隠す。
+      // 霧の白オーバーレイは背景アートを白く潰すため廃止。
+      fog:            0,
+      mode:           this._mode,
+      aim:            aimState,
+      panelGeom,
+      buttonRects:    this._phase === 'AIM' ? this._buttonRects() : null, // ボタン矩形の単一の真実
+      canZoom:        this._phase === 'AIM' && this._stage.aim.zoomable,
+      memo:           (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
+                       && this._phase === 'AIM') ? String(this._measuredValue) : null,
+      firedArc:       this._firedArc,
+      fireProgress:   (this._phase === 'FIRE' && this._fireStart != null)
                         ? Math.min(1, (performance.now() - this._fireStart) / this._fireDuration) : null,
-      resultProgress:  (this._phase === 'RESULT' && this._resultStart != null)
+      landingX:       this._landingX,
+      hitResult:      this._hitResult,
+      resultProgress: (this._phase === 'RESULT' && this._resultStart != null)
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
+      timerRemaining: this._timerRemaining,
     }
+  }
+
+  // 照準パネルの数直線ジオメトリ（renderer と AimInput で共有）
+  _panelGeom() {
+    const sx = CONFIG.AIM_PANEL.MARGIN_X
+    const ex = this._canvas.width - CONFIG.AIM_PANEL.MARGIN_X
+    const y  = this._canvas.height - CONFIG.AIM_PANEL.Y_FROM_BOTTOM
+    return { sx, ex, y }
   }
 
   _onTitleTap(x) {
@@ -85,27 +103,27 @@ class Game {
   }
 
   _startMeasure() {
-    this._phase       = 'MEASURE'
-    this._zoomLevel   = 1
-    this._zoomMin     = 0
-    this._zoomMax     = 1000
-    this._tickStep    = CONFIG.ZOOM.LEVEL1.tickStep
-    this._targetValue = generateTarget(
-      CONFIG.RULER.MIN, CONFIG.RULER.MAX, CONFIG.ZOOM.LEVEL1.tickStep
-    )
-    this._measuredValue   = null
-    this._measureError    = 0
-    this._firedTrajectory = null
-    this._landingX        = null
-    this._hitResult       = null
-    this._fireStart       = null
-    this._resultStart     = null
+    this._phase = 'MEASURE'
+    // 段階＝連続命中アンロック maxLevel に対応
+    this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
+    this._stage      = currentStage(this._unlock.maxLevel, CONFIG)
 
-    // ズームタップ登録（捕捉フェーズのみ有効）
-    this._canvas.addEventListener('click',    this._handleZoomTap)
-    this._canvas.addEventListener('touchend', this._handleZoomTap, { passive: false })
+    this._targetValue = generateTarget(CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep)
+    // 端でクランプ窓が潰れるのを避けたいだけなら target を内側へ寄せてもよいが、
+    // getMeasureWindow が端クランプ済なので 0/1000 でも安全。
+    const win = getMeasureWindow(this._targetValue, this._stage, CONFIG)
+    this._zoomMin  = win.min
+    this._zoomMax  = win.max
+    this._tickStep = win.tickStep
 
-    // テンキーは初級のみ（上級は読んで記憶＝入力なし）
+    this._measuredValue = null
+    this._firedArc      = null
+    this._landingX      = null
+    this._hitResult     = null
+    this._fireStart     = null
+    this._resultStart   = null
+
+    // テンキー（初級のみ＝読んだ数を入力してメモにする）
     if (CONFIG.MODES[this._mode].showNumpad) {
       this._numpad.reset()
       this._numpad.show()
@@ -114,7 +132,11 @@ class Game {
       this._numpad.hide()
     }
 
-    // タイマー（上級のみ）：0になったら自動的に発射フェーズへ
+    // 「読んで覚えたら そらをタップで射撃へ」（上級／初級は数字入力で進む）
+    this._canvas.addEventListener('click',    this._handleMeasureTap)
+    this._canvas.addEventListener('touchend', this._handleMeasureTap, { passive: false })
+
+    // タイマー（上級のみ）：0で自動的に射撃へ
     if (CONFIG.MODES[this._mode].measureTimer) {
       this._timerRemaining = CONFIG.TIMER.MEASURE_SEC
       this._timerInterval = setInterval(() => {
@@ -126,105 +148,102 @@ class Game {
     }
   }
 
-  // 上級：読んで記憶したら（数直線の外タップ or タイマー0で）発射フェーズへ。
-  // 入力値は持たない＝メモも出さない（記憶だけが頼り）。
+  // 測量中のタップ：上級は「読んだ→射撃へ」進む合図（初級はテンキーのOKで進むので無視）。
+  // ※タップでズーム場所を選ぶ旧仕様は廃止（双眼鏡は船の周りを自動枠取り）。
+  _handleMeasureTap = (e) => {
+    if (e.type === 'touchend') e.preventDefault()
+    if (this._phase !== 'MEASURE') return
+    if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
+    this._advanceFromMeasure()
+  }
+
   _advanceFromMeasure() {
     if (this._phase !== 'MEASURE') return
     clearInterval(this._timerInterval)
-    this._canvas.removeEventListener('click',    this._handleZoomTap)
-    this._canvas.removeEventListener('touchend', this._handleZoomTap)
+    this._canvas.removeEventListener('click',    this._handleMeasureTap)
+    this._canvas.removeEventListener('touchend', this._handleMeasureTap)
     this._numpad.hide()
-    this._measuredValue = null
+    this._measuredValue = null // 上級はメモ無し（記憶だけ）
     this._startAim()
-  }
-
-  _handleZoomTap = (e) => {
-    if (e.type === 'touchend') e.preventDefault()
-    if (this._phase !== 'MEASURE') return
-
-    const rect    = this._canvas.getBoundingClientRect()
-    const clientX = e.touches ? e.changedTouches[0].clientX : e.clientX
-    const x       = (clientX - rect.left) * (this._canvas.width / rect.width)
-    const rsx     = CONFIG.RULER.MARGIN_X
-    const rex     = this._canvas.width - CONFIG.RULER.MARGIN_X
-
-    // 数直線の外タップ：上級は「読んだ→発射へ」進む合図、初級は無視
-    if (x < rsx || x > rex) {
-      if (!CONFIG.MODES[this._mode].showNumpad) this._advanceFromMeasure()
-      return
-    }
-    // ここから下はズーム（数直線内タップ）
-    if (this._zoomLevel >= this._unlock.maxLevel) return // 解放済み最大に達している
-
-    const ratio      = (x - rsx) / (rex - rsx)
-    const tappedVal  = CONFIG.RULER.MIN + ratio * (CONFIG.RULER.MAX - CONFIG.RULER.MIN)
-
-    this._zoomLevel++
-    const zRange       = getZoomRange(this._zoomLevel, tappedVal, CONFIG)
-    this._zoomMin      = zRange.min
-    this._zoomMax      = zRange.max
-    this._tickStep     = zRange.tickStep
   }
 
   _submitMeasure(val) {
     if (this._phase !== 'MEASURE') return
     clearInterval(this._timerInterval)
-    this._canvas.removeEventListener('click',    this._handleZoomTap)
-    this._canvas.removeEventListener('touchend', this._handleZoomTap)
+    this._canvas.removeEventListener('click',    this._handleMeasureTap)
+    this._canvas.removeEventListener('touchend', this._handleMeasureTap)
     this._numpad.hide()
     this._measuredValue = val
-    // 測量誤差は記録のみ。命中判定には絶対に使わない（誤差源は着水点vs正解の1本＝spec§7）。
-    // applyBlur撤廃後は未使用。将来の表示用に残すが、ここから判定経路へ戻さないこと。
-    this._measureError  = calcMeasurementError(val, this._targetValue)
+    // ※測量誤差（calcMeasurementError）は判定に使わない＝spec §6。記録が要るまで呼ばない。
     this._startAim()
   }
 
   _startAim() {
-    this._phase    = 'AIM'
-    // 砲撃フェーズは全体表示に戻す
-    this._zoomMin  = CONFIG.RULER.MIN
-    this._zoomMax  = CONFIG.RULER.MAX
-    this._tickStep = CONFIG.ZOOM.LEVEL1.tickStep
-
-    this._cannonInput.attach(this._canvas, CONFIG, (shot) => this._fire(shot))
+    this._phase = 'AIM'
+    this._aimInput.setStage(this._stage)
+    // 発射はボタン（_handleAimButtons→_fireFromButton）で行う。AimInput はコールバックを取らない。
+    this._aimInput.attach(this._canvas, CONFIG, this._panelGeom())
+    // 発射ボタン／ズームボタンのタップを受ける（renderer がボタン矩形を描き、ここで当たり判定）
+    this._canvas.addEventListener('click',    this._handleAimButtons)
+    this._canvas.addEventListener('touchend', this._handleAimButtons, { passive: false })
   }
 
-  _fire(shot) {
-    this._cannonInput.detach()
+  // AIM 中のボタン当たり判定（発射・上級ズーム）。矩形は renderer と同じ計算式を使う。
+  _handleAimButtons = (e) => {
+    if (e.type === 'touchend') e.preventDefault()
+    if (this._phase !== 'AIM') return
+    const rect = this._canvas.getBoundingClientRect()
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY
+    const x = (clientX - rect.left) * (this._canvas.width  / rect.width)
+    const y = (clientY - rect.top)  * (this._canvas.height / rect.height)
+
+    const b = this._buttonRects()
+    if (b.fire && this._inRect(x, y, b.fire)) { this._fireFromButton(); return }
+    if (b.zoom && this._inRect(x, y, b.zoom)) { this._aimInput.toggleZoom(); return }
+  }
+
+  _fireFromButton() {
+    const st = this._aimInput.getState()
+    this._fire(st.needleValue)
+  }
+
+  _inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h }
+
+  // 発射／ズームボタンの矩形（renderer.drawFrame と同じ式・単一の真実にするため共有計算）
+  _buttonRects() {
+    const cv = this._canvas
+    const fire = { x: cv.width - 150, y: cv.height - 64, w: 130, h: 52 }
+    const zoom = this._stage.aim.zoomable
+      ? { x: 20, y: cv.height - 64, w: 130, h: 52 }
+      : null
+    return { fire, zoom }
+  }
+
+  _fire(value) {
+    this._aimInput.detach()
+    this._canvas.removeEventListener('click',    this._handleAimButtons)
+    this._canvas.removeEventListener('touchend', this._handleAimButtons)
     this._phase = 'FIRE'
 
+    const rsx = CONFIG.RULER.MARGIN_X
+    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
     const rulerY  = this._canvas.height - CONFIG.RULER.Y_FROM_BOTTOM
-    const cannonY = rulerY + CONFIG.CANNON.Y_FROM_RULER
     const cannonX = CONFIG.CANNON.X_FROM_LEFT
+    const cannonY = rulerY + CONFIG.CANNON.Y_FROM_RULER
 
-    const idealX  = calcLandingX(cannonX, cannonY, shot.power, shot.angleRad,
-                                  CONFIG.PHYSICS.GRAVITY, rulerY)
-    this._landingX = idealX !== null ? idealX : (cannonX + 200)
+    // 着水点＝置いた値そのもの（ブレなし）。横視点 0〜1000 で x に変換。
+    this._landingValue = value
+    this._landingX = valueToX(value, CONFIG.RULER.MIN, CONFIG.RULER.MAX, rsx, rex)
+    this._firedArc = arcPoints(cannonX, cannonY, this._landingX, rulerY, 36, 180)
 
-    // 軌跡は着水点（数直線）で打ち切り、最後に正確な着水点を足す
-    const full = calcTrajectory(
-      cannonX, cannonY, shot.power, shot.angleRad, CONFIG.PHYSICS.GRAVITY, 36
-    )
-    const traj = []
-    for (const pt of full) {
-      traj.push(pt)
-      if (pt.y >= rulerY) break
-    }
-    traj.push({ x: this._landingX, y: rulerY })
-    this._firedTrajectory = traj
-
-    // 弾を飛ばすアニメーション時間
     this._fireStart = performance.now()
     setTimeout(() => this._showResult(), this._fireDuration)
   }
 
   _showResult() {
     this._phase = 'RESULT'
-    const rsx = CONFIG.RULER.MARGIN_X
-    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
-    const landingValue = xToValue(this._landingX, CONFIG.RULER.MIN, CONFIG.RULER.MAX, rsx, rex)
-    const isHit = judgeHit(landingValue, this._targetValue, CONFIG.UNLOCK.HIT_MARGIN_VALUE)
-
+    const isHit = judgeHit(this._landingValue, this._targetValue, this._stage.hitMargin)
     this._hitResult = isHit ? 'HIT' : 'MISS'
     this._unlock.recordHit(isHit)
     this._unlock.save()
