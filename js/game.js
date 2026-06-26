@@ -66,7 +66,9 @@ class Game {
       stageName:      this._stage.name,
       // 測量で船を見せるのは「窓の中だけ」。RESULT は横視点で正解位置に船を出す（リール無し＝次は別の的）。
       showShip:       this._phase === 'MEASURE' || this._phase === 'RESULT',
-      fog:            (this._phase === 'AIM' || this._phase === 'FIRE') ? 1 : 0,
+      // 敵船は showShip(MEASURE/RESULT のみ)で制御し、AIM/FIRE は一人称/横視点の背景が隠す。
+      // 霧の白オーバーレイは背景アートを白く潰すため廃止。
+      fog:            0,
       mode:           this._mode,
       aim:            aimState,
       panelGeom,

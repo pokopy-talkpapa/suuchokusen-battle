@@ -188,41 +188,11 @@ export class Renderer {
       }
     }
 
-    // 霧（AIM/FIRE中に敵船を隠す）
-    if (state.fog > 0) {
-      const fogTop = 0
-      const fogBottom = rulerY - rulerH / 2
-      const grad = ctx.createLinearGradient(0, fogTop, 0, fogBottom)
-      grad.addColorStop(0,   `rgba(255,255,255,${0.92 * state.fog})`)
-      grad.addColorStop(1,   `rgba(255,255,255,${0.78 * state.fog})`)
-      ctx.fillStyle = grad
-      ctx.fillRect(0, fogTop, cv.width, fogBottom - fogTop)
-    }
-
-    // ── 射撃フェーズ（一人称・手元の照準パネル） ──
+    // ── 射撃フェーズ（一人称 aim-pov 背景の上に手元の照準パネルを置く） ──
     if (state.phase === 'AIM' && state.aim) {
       ctx.save()
       const { sx, ex, y } = state.panelGeom
       const a = state.aim
-
-      // 一人称の暗い前景（海・遠くの船は見えない）。霧(state.fog)に重ねて下半分を陣地色に。
-      // ※renderer は CONFIG を import しない。設定は CFG(=this._CONFIG) 経由で読む。
-      const horizon = y - CFG.AIM_PANEL.HEIGHT
-      const fg = ctx.createLinearGradient(0, horizon - 80, 0, cv.height)
-      fg.addColorStop(0, 'rgba(20,24,30,0.0)')
-      fg.addColorStop(0.5, 'rgba(20,24,30,0.85)')
-      fg.addColorStop(1, 'rgba(12,15,20,0.98)')
-      ctx.fillStyle = fg
-      ctx.fillRect(0, horizon - 80, cv.width, cv.height - (horizon - 80))
-
-      // 砲口（奥へ向く＝向きだけ見える）。中央やや上に楕円の砲口。
-      ctx.fillStyle = '#1b1b1f'
-      ctx.beginPath()
-      ctx.ellipse(cv.width / 2, horizon - 24, 46, 20, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.strokeStyle = '#3a3a42'
-      ctx.lineWidth = 8
-      ctx.stroke()
 
       // 照準パネル PNG（土台）
       const ph = CFG.AIM_PANEL.HEIGHT
