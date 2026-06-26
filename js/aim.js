@@ -13,7 +13,6 @@ export class AimInput {
     this._canvas    = null
     this._CONFIG    = null
     this._geom      = null   // { sx, ex, y }
-    this._onFire    = null
     this._stage     = null
     this._panelMin  = 0
     this._panelMax  = 1000
@@ -62,11 +61,10 @@ export class AimInput {
     return valueToX(this._needleVal, this._panelMin, this._panelMax, this._geom.sx, this._geom.ex)
   }
 
-  attach(canvas, CONFIG, panelGeom, onFire) {
+  attach(canvas, CONFIG, panelGeom) {
     this._canvas = canvas
     this._CONFIG = CONFIG
     this._geom   = panelGeom
-    this._onFire = onFire
 
     const toX = (clientX) => {
       const rect = canvas.getBoundingClientRect()
