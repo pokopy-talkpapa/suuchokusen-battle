@@ -81,7 +81,8 @@ export class Renderer {
 
     // タイトル画面：モードを大きな2ボタンで選ぶ（取り違え防止）
     if (state.phase === 'TITLE') {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      // title-bg のキービジュアルを活かすため暗幕は薄め。文字の可読性はテキスト側のフチで確保。
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffdd00'
@@ -310,8 +311,9 @@ export class Renderer {
 
     // 双眼鏡の覗き込み（MEASURE中）：レンズ外を黒で塞ぎ、その上に枠PNGを重ねる。
     if (state.phase === 'MEASURE') {
-      const cy  = cv.height * 0.46
-      const R   = Math.min(cv.width * 0.30, cv.height * 0.60)
+      // 横視点の舞台に合わせる初期値（実機で詰める）。数直線(MEASURE)は cv.height*0.52。
+      const cy  = Math.round(cv.height * 0.50)
+      const R   = Math.min(cv.width * 0.30, cv.height * 0.58)
       const cxL = cv.width / 2 - R * 0.82
       const cxR = cv.width / 2 + R * 0.82
 
