@@ -2,7 +2,8 @@
 import { valueToX, getTicks } from './ruler.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
-                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel']
+                     'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
+                     'stage-bg', 'aim-pov', 'title-bg']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
