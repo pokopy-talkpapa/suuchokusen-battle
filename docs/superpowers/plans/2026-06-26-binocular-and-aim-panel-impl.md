@@ -601,6 +601,7 @@ git commit -m "feat: AimInput (needle drag on panel, fire, expert zoom)"
 
 **Files:**
 - Modify: `js/game.js`
+- Modify: `js/aim.js`（小掃除のみ＝Task 5 で `AimInput.attach` に残った未使用 `onFire` パラメータと `this._onFire` フィールドを撤去。発射は game.js のボタン当たり判定経由＝下記 `_fireFromButton`/`_fire` で行うため、コールバックは使わない）
 
 **Interfaces:**
 - Consumes: `currentStage`(stage.js)、`getMeasureWindow`(ruler.js)、`AimInput`(aim.js)、`arcPoints`(physics.js)、`valueToX`(ruler.js)、`generateTarget`,`judgeHit`(measurement.js)、`UnlockState`。
@@ -808,7 +809,8 @@ import { currentStage, stageIndexFromMaxLevel } from './stage.js'
   _startAim() {
     this._phase = 'AIM'
     this._aimInput.setStage(this._stage)
-    this._aimInput.attach(this._canvas, CONFIG, this._panelGeom(), (value) => this._fire(value))
+    // 発射はボタン（_handleAimButtons→_fireFromButton）で行う。AimInput はコールバックを取らない。
+    this._aimInput.attach(this._canvas, CONFIG, this._panelGeom())
     // 発射ボタン／ズームボタンのタップを受ける（renderer がボタン矩形を描き、ここで当たり判定）
     this._canvas.addEventListener('click',    this._handleAimButtons)
     this._canvas.addEventListener('touchend', this._handleAimButtons, { passive: false })
