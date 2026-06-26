@@ -135,8 +135,9 @@ export class Renderer {
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
     if (state.showShip) {
-      const shipW = CFG.ENEMY.SHIP_WIDTH
-      const shipH = CFG.ENEMY.SHIP_HEIGHT
+      const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
+      const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
+      const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
       const centerY = rulerY - rulerH / 2 - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
