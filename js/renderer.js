@@ -118,21 +118,26 @@ export class Renderer {
       ctx.strokeRect(rsx - 10, rulerY - rulerH / 2, rex - rsx + 20, rulerH)
     }
 
-    // 目盛り
+    // 目盛り（数字ラベルは「読む」のが芯なので大きく・白フチで高コントラストに）
     const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
-    ctx.strokeStyle = '#5a3a10'
-    ctx.fillStyle   = '#2a1a00'
-    ctx.font = 'bold 13px sans-serif'
     ctx.textAlign = 'center'
     ticks.forEach(({ value, isMajor }) => {
       const x   = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-      const tH  = isMajor ? 20 : 10
-      ctx.lineWidth = isMajor ? 2 : 1
+      const tH  = isMajor ? 22 : 10
+      ctx.strokeStyle = '#5a3a10'
+      ctx.lineWidth = isMajor ? 3 : 1
       ctx.beginPath()
       ctx.moveTo(x, rulerY - tH / 2)
       ctx.lineTo(x, rulerY + tH / 2)
       ctx.stroke()
-      if (isMajor) ctx.fillText(String(value), x, rulerY - tH / 2 - 4)
+      if (isMajor) {
+        ctx.font = 'bold 22px sans-serif'
+        ctx.lineWidth = 5
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeText(String(value), x, rulerY - tH / 2 - 6)
+        ctx.fillStyle = '#2a1a00'
+        ctx.fillText(String(value), x, rulerY - tH / 2 - 6)
+      }
     })
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
@@ -263,22 +268,25 @@ export class Renderer {
       ctx.restore()
     }
 
-    // 島（砲台の足場・数直線の外）
-    const isl = CFG.ISLAND
-    const islTop = rulerY - rulerH / 2 + 6  // 数直線帯の高さに足元を合わせる
-    if (this._imgs['island']) {
-      ctx.drawImage(this._imgs['island'],
-        isl.CENTER_X - isl.WIDTH / 2, islTop - isl.HEIGHT, isl.WIDTH, isl.HEIGHT)
-    }
+    // 島＋大砲（横視点の足場・砲台）。射撃フェーズは一人称なので横向き大砲は描かない。
+    if (state.phase !== 'AIM') {
+      // 島（砲台の足場・数直線の外）
+      const isl = CFG.ISLAND
+      const islTop = rulerY - rulerH / 2 + 6  // 数直線帯の高さに足元を合わせる
+      if (this._imgs['island']) {
+        ctx.drawImage(this._imgs['island'],
+          isl.CENTER_X - isl.WIDTH / 2, islTop - isl.HEIGHT, isl.WIDTH, isl.HEIGHT)
+      }
 
-    // 大砲
-    if (this._imgs['cannon']) {
-      ctx.drawImage(this._imgs['cannon'], cannonX - 40, cannonY - 30, 80, 60)
-    } else {
-      ctx.fillStyle = '#4a3000'
-      ctx.beginPath()
-      ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
-      ctx.fill()
+      // 大砲
+      if (this._imgs['cannon']) {
+        ctx.drawImage(this._imgs['cannon'], cannonX - 40, cannonY - 30, 80, 60)
+      } else {
+        ctx.fillStyle = '#4a3000'
+        ctx.beginPath()
+        ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
     // 砲弾の飛翔（FIRE）：firedArc を fireProgress まで描き、先端に弾。
     if (state.firedArc && state.fireProgress != null) {
