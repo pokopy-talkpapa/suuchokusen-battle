@@ -179,6 +179,7 @@ export class Renderer {
 
     // ── 射撃フェーズ（一人称・手元の照準パネル） ──
     if (state.phase === 'AIM' && state.aim) {
+      ctx.save()
       const { sx, ex, y } = state.panelGeom
       const a = state.aim
 
@@ -256,18 +257,7 @@ export class Renderer {
         ctx.fillStyle = '#fff'; ctx.font = 'bold 22px sans-serif'
         ctx.fillText(a.zoomed ? 'もどす' : 'ズーム', zb.x + zb.w / 2, zb.y + 33)
       }
-    }
-
-    // 発射中のメモ（初心者モードのみ・AIM以外フェーズ）
-    if (state.memo && state.phase !== 'AIM') {
-      ctx.font = 'bold 40px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillStyle = '#ffdd00'
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'
-      ctx.lineWidth = 6
-      const label = `ねらえ ${state.memo}`
-      ctx.strokeText(label, cv.width / 2, 60)
-      ctx.fillText(label, cv.width / 2, 60)
+      ctx.restore()
     }
 
     // 島（砲台の足場・数直線の外）
@@ -287,33 +277,23 @@ export class Renderer {
       ctx.arc(cannonX, cannonY, 24, 0, Math.PI * 2)
       ctx.fill()
     }
-    // 砲弾の飛翔（FIRE フェーズ）：軌跡を少しずつ伸ばし、弾を放物線上で動かす
-    if (state.firedTrajectory && state.fireProgress != null) {
-      const traj = state.firedTrajectory
-      const idx  = Math.min(traj.length - 1,
-                            Math.round(state.fireProgress * (traj.length - 1)))
-      // 通過済みの軌跡だけ描く
+    // 砲弾の飛翔（FIRE）：firedArc を fireProgress まで描き、先端に弾。
+    if (state.firedArc && state.fireProgress != null) {
+      const arc = state.firedArc
+      const idx = Math.min(arc.length - 1, Math.round(state.fireProgress * (arc.length - 1)))
       ctx.strokeStyle = 'rgba(255,170,0,0.85)'
       ctx.lineWidth = 3
       ctx.setLineDash([6, 4])
       ctx.beginPath()
       for (let i = 0; i <= idx; i++) {
-        i === 0 ? ctx.moveTo(traj[i].x, traj[i].y) : ctx.lineTo(traj[i].x, traj[i].y)
+        i === 0 ? ctx.moveTo(arc[i].x, arc[i].y) : ctx.lineTo(arc[i].x, arc[i].y)
       }
-      ctx.stroke()
-      ctx.setLineDash([])
-      // 飛んでいる弾（先端）
-      const p = traj[idx]
+      ctx.stroke(); ctx.setLineDash([])
+      const p = arc[idx]
       if (p) {
         const s = 30
-        if (this._imgs['cannonball']) {
-          ctx.drawImage(this._imgs['cannonball'], p.x - s/2, p.y - s/2, s, s)
-        } else {
-          ctx.fillStyle = '#1a1a1a'
-          ctx.beginPath()
-          ctx.arc(p.x, p.y, 9, 0, Math.PI * 2)
-          ctx.fill()
-        }
+        if (this._imgs['cannonball']) ctx.drawImage(this._imgs['cannonball'], p.x - s/2, p.y - s/2, s, s)
+        else { ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill() }
       }
     }
 
