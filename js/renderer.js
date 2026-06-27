@@ -4,7 +4,7 @@ import { VERSION } from './config.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
-                     'stage-bg', 'aim-pov', 'title-bg', 'sea-open', 'ruler-img']
+                     'stage-bg', 'aim-pov', 'title-bg', 'sea-open', 'ruler-img', 'island-cutout']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -57,7 +57,7 @@ export class Renderer {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
     // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
     // それ以外（結果の横視点など）は従来どおり画面下。
-    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.40) : this._rulerY()
+    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.44) : this._rulerY()
     const rsx    = this._rulerSX()
     const rex    = this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
@@ -117,6 +117,16 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,255,255,0.6)'
       ctx.fillText(VERSION, cv.width - 14, cv.height - 12)
       return
+    }
+
+    // 島（MEASURE フェーズ・左端）：大砲の高さが rulerY に来るよう位置合わせ
+    if (state.phase === 'MEASURE' && this._imgs['island-cutout']) {
+      const img = this._imgs['island-cutout']
+      const iW  = cv.width * 0.20                          // 画面幅の20%
+      const iH  = iW * (img.height / img.width)            // アスペクト比維持
+      const iX  = -iW * 0.05                               // 少し左にはみ出す
+      const iY  = rulerY - iH * 0.38                       // 大砲が rulerY に来るよう上にオフセット
+      ctx.drawImage(img, iX, iY, iW, iH)
     }
 
     // 数直線。AIM は手元パネルが別の数直線を持つので主数直線は描かない。
