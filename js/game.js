@@ -49,7 +49,10 @@ class Game {
   }
 
   _buildState() {
-    const rsx = CONFIG.RULER.MARGIN_X
+    // MEASURE フェーズは大砲の先端（画面幅15%）から数直線を始める。他は通常マージン。
+    const rsx = this._phase === 'MEASURE'
+      ? Math.round(this._canvas.width * 0.155)
+      : CONFIG.RULER.MARGIN_X
     const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
     const enemyX = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
 
@@ -86,6 +89,7 @@ class Game {
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
       timerRemaining:  this._timerRemaining,
       backButtonRect:  this._phase !== 'TITLE' ? this._backButtonRect() : null,
+      rulerGeom:       { rsx, rex },
     }
   }
 

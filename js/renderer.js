@@ -57,9 +57,10 @@ export class Renderer {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
     // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
     // それ以外（結果の横視点など）は従来どおり画面下。
-    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.44) : this._rulerY()
-    const rsx    = this._rulerSX()
-    const rex    = this._rulerEX()
+    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.62) : this._rulerY()
+    // game.js から渡された rulerGeom（MEASURE は大砲先端起点）を優先、なければデフォルト
+    const rsx = state.rulerGeom?.rsx ?? this._rulerSX()
+    const rex = state.rulerGeom?.rex ?? this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
 
     ctx.clearRect(0, 0, cv.width, cv.height)
@@ -71,7 +72,12 @@ export class Renderer {
                  : /* FIRE / RESULT */                  'stage-bg'
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
-      ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
+      if (state.phase === 'MEASURE') {
+        // 上72%だけ表示してキャンバスに引き伸ばす→水平線が下2/3付近に下がる
+        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.72, 0, 0, cv.width, cv.height)
+      } else {
+        ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
+      }
     } else {
       const grad = ctx.createLinearGradient(0, 0, 0, cv.height)
       grad.addColorStop(0, '#87ceeb')
@@ -122,7 +128,7 @@ export class Renderer {
     // 島（MEASURE フェーズ・左端）：大砲の高さが rulerY に来るよう位置合わせ
     if (state.phase === 'MEASURE' && this._imgs['island-cutout']) {
       const img = this._imgs['island-cutout']
-      const iW  = cv.width * 0.20                          // 画面幅の20%
+      const iW  = cv.width * 0.16                          // 画面幅の16%
       const iH  = iW * (img.height / img.width)            // アスペクト比維持
       const iX  = -iW * 0.05                               // 少し左にはみ出す
       const iY  = rulerY - iH * 0.38                       // 大砲が rulerY に来るよう上にオフセット
