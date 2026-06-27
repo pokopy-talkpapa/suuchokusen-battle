@@ -1,5 +1,6 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
+import { VERSION } from './config.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
@@ -108,6 +109,12 @@ export class Renderer {
       }
       drawBtn(cv.width * 0.27, '#2e8b57', 'しょしんしゃ', 'じっくり・ヒントあり')
       drawBtn(cv.width * 0.73, '#c0531f', 'じょうきゅう', 'じかんせいげん・きおく')
+
+      // バージョン番号（右下）
+      ctx.font = '16px sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      ctx.fillText(VERSION, cv.width - 14, cv.height - 12)
       return
     }
 

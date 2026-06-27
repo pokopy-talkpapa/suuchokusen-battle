@@ -1,4 +1,6 @@
 // js/config.js
+export const VERSION = 'v1.06'
+
 export const CONFIG = {
   RULER: {
     MIN: 0,
