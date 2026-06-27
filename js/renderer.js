@@ -142,13 +142,14 @@ export class Renderer {
     // MEASURE は授業用PNG（数字なし）を multiply 合成で重ねる。それ以外は Canvas 描画。
     if (state.phase !== 'AIM') {
       if (state.phase === 'MEASURE' && this._imgs['ruler-img']) {
-        // 授業用数直線PNG（白背景+黒線）をmultiply合成→白が透明になり黒線だけ残る
+        // ruler-img は黒線+透明背景。左右6.3%が透明余白→ソースクリップで除去し線をrsx〜rexに合わせる
         const img = this._imgs['ruler-img']
+        const pad = img.width * 0.063              // 6.3% 余白
+        const srcX = pad, srcW = img.width - pad * 2
         const rw = rex - rsx
-        const rh = rw * (img.height / img.width) * 0.5  // 縦を絞って細く見せる
+        const rh = rw * (img.height / img.width) * 0.5
         ctx.save()
-        ctx.globalCompositeOperation = 'multiply'
-        ctx.drawImage(img, rsx, rulerY - rh / 2, rw, rh)
+        ctx.drawImage(img, srcX, 0, srcW, img.height, rsx, rulerY - rh / 2, rw, rh)
         ctx.restore()
 
         // 両端だけ数字（0・最大値）

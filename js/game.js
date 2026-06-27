@@ -53,7 +53,10 @@ class Game {
     const rsx = this._phase === 'MEASURE'
       ? Math.round(this._canvas.width * 0.155)
       : CONFIG.RULER.MARGIN_X
-    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
+    // MEASURE：右端を双眼鏡フレームの内側（88%）に収める
+    const rex = this._phase === 'MEASURE'
+      ? Math.round(this._canvas.width * 0.88)
+      : this._canvas.width - CONFIG.RULER.MARGIN_X
     const enemyX = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
 
     const panelGeom = this._panelGeom()
