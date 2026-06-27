@@ -207,9 +207,10 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      // MEASURE・RESULT：数直線のすぐ下・テンキーより上に船を表示。FIRE：従来。
+      // MEASURE・RESULT：船底が水平線（画面高さ約58%）に乗るよう配置。FIRE：従来。
+      // sea-open.png の水平線は画像高さの約47%・crop=0.80 → canvas上は47/80≈58.75%
       const centerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
-        ? rulerY + shipH * 0.75
+        ? Math.round(cv.height * 0.58 - shipH * 0.4)
         : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
