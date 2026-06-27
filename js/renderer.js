@@ -4,7 +4,7 @@ import { VERSION } from './config.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
-                     'stage-bg', 'aim-pov', 'title-bg']
+                     'stage-bg', 'aim-pov', 'title-bg', 'sea-open', 'ruler-img']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -64,10 +64,11 @@ export class Renderer {
 
     ctx.clearRect(0, 0, cv.width, cv.height)
 
-    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / それ以外=横視点の舞台。
+    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / MEASURE=海のみ / それ以外=横視点の舞台。
     const bgName = (state.phase === 'TITLE')          ? 'title-bg'
                  : (state.phase === 'AIM')            ? 'aim-pov'
-                 : /* MEASURE / FIRE / RESULT */        'stage-bg'
+                 : (state.phase === 'MEASURE')        ? 'sea-open'
+                 : /* FIRE / RESULT */                  'stage-bg'
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
       ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
@@ -118,48 +119,68 @@ export class Renderer {
       return
     }
 
-    // 数直線（茶色のシンプルな1本線＋等間隔の縦目盛り。数字は両端だけ・PNG定規は廃止）。
-    // AIM は手元パネルが別の数直線を持つので主数直線は描かない。
+    // 数直線。AIM は手元パネルが別の数直線を持つので主数直線は描かない。
+    // MEASURE は授業用PNG（数字なし）を multiply 合成で重ねる。それ以外は Canvas 描画。
     if (state.phase !== 'AIM') {
-      const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
+      if (state.phase === 'MEASURE' && this._imgs['ruler-img']) {
+        // 授業用数直線PNG（白背景+黒線）をmultiply合成→白が透明になり黒線だけ残る
+        const img = this._imgs['ruler-img']
+        const rw = rex - rsx
+        const rh = rw * (img.height / img.width) * 0.5  // 縦を絞って細く見せる
+        ctx.save()
+        ctx.globalCompositeOperation = 'multiply'
+        ctx.drawImage(img, rsx, rulerY - rh / 2, rw, rh)
+        ctx.restore()
 
-      // 基準線（細い茶色の1本）
-      ctx.strokeStyle = '#3C2415'
-      ctx.lineWidth = 4
-      ctx.beginPath()
-      ctx.moveTo(rsx, rulerY)
-      ctx.lineTo(rex, rulerY)
-      ctx.stroke()
+        // 両端だけ数字（0・最大値）
+        ctx.textAlign = 'center'
+        ;[state.zoomMin, state.zoomMax].forEach((value) => {
+          const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+          ctx.font = 'bold 24px sans-serif'
+          ctx.lineWidth = 5
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+          ctx.strokeText(String(value), x, rulerY - 18)
+          ctx.fillStyle = '#111'
+          ctx.fillText(String(value), x, rulerY - 18)
+        })
+      } else {
+        const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
-      // 途中の目盛り（数字なし）
-      ctx.textAlign = 'center'
-      ticks.forEach(({ value, isMajor }) => {
-        const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-        const tH = isMajor ? 22 : 12
         ctx.strokeStyle = '#3C2415'
-        ctx.lineWidth = isMajor ? 3 : 2
+        ctx.lineWidth = 4
         ctx.beginPath()
-        ctx.moveTo(x, rulerY - tH / 2)
-        ctx.lineTo(x, rulerY + tH / 2)
+        ctx.moveTo(rsx, rulerY)
+        ctx.lineTo(rex, rulerY)
         ctx.stroke()
-      })
 
-      // 両端だけ：長い縦線＋数字（最小・最大）。途中に数字を出さない＝「読む」必然を守る。
-      ;[state.zoomMin, state.zoomMax].forEach((value) => {
-        const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-        ctx.strokeStyle = '#3C2415'
-        ctx.lineWidth = 5
-        ctx.beginPath()
-        ctx.moveTo(x, rulerY - 30)
-        ctx.lineTo(x, rulerY + 30)
-        ctx.stroke()
-        ctx.font = 'bold 26px sans-serif'
-        ctx.lineWidth = 6
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.strokeText(String(value), x, rulerY - 36)
-        ctx.fillStyle = '#3C2415'
-        ctx.fillText(String(value), x, rulerY - 36)
-      })
+        ctx.textAlign = 'center'
+        ticks.forEach(({ value, isMajor }) => {
+          const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+          const tH = isMajor ? 22 : 12
+          ctx.strokeStyle = '#3C2415'
+          ctx.lineWidth = isMajor ? 3 : 2
+          ctx.beginPath()
+          ctx.moveTo(x, rulerY - tH / 2)
+          ctx.lineTo(x, rulerY + tH / 2)
+          ctx.stroke()
+        })
+
+        ;[state.zoomMin, state.zoomMax].forEach((value) => {
+          const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+          ctx.strokeStyle = '#3C2415'
+          ctx.lineWidth = 5
+          ctx.beginPath()
+          ctx.moveTo(x, rulerY - 30)
+          ctx.lineTo(x, rulerY + 30)
+          ctx.stroke()
+          ctx.font = 'bold 26px sans-serif'
+          ctx.lineWidth = 6
+          ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+          ctx.strokeText(String(value), x, rulerY - 36)
+          ctx.fillStyle = '#3C2415'
+          ctx.fillText(String(value), x, rulerY - 36)
+        })
+      }
     }
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
