@@ -5,7 +5,7 @@ export const CONFIG = {
     MAX: 1000,
     Y_FROM_BOTTOM: 90,   // 画面下端から数直線帯中心までのpx
     HEIGHT: 56,          // 数直線帯の高さpx
-    MARGIN_X: 260,       // 数直線の左右マージンpx（島・大砲の右端を超える位置）
+    MARGIN_X: 20,        // 数直線の左右マージンpx（端から端）
   },
   ZOOM: {
     // レベル1（肉眼）：0〜1000全体・1目盛り=100
@@ -58,7 +58,7 @@ export const CONFIG = {
       targetStep: 100,         // 正解は100の倍数
       aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
       hitMargin: 45,
-      enemyScale: 1.25,
+      enemyScale: 1.0,
     },
     { // 中盤：百十まで読む。射撃は百のまま＝内分。敵=小型船。
       name: '中盤',

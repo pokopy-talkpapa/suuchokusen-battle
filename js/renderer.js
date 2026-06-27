@@ -56,7 +56,7 @@ export class Renderer {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
     // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
     // それ以外（結果の横視点など）は従来どおり画面下。
-    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.52) : this._rulerY()
+    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.62) : this._rulerY()
     const rsx    = this._rulerSX()
     const rex    = this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
