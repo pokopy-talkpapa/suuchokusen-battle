@@ -105,8 +105,10 @@ class Game {
   _startMeasure() {
     this._phase = 'MEASURE'
     // 段階＝連続命中アンロック maxLevel に対応
-    this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
-    this._stage      = currentStage(this._unlock.maxLevel, CONFIG)
+    // 初心者モードは常にステージ0（序盤・小さい数字）に固定
+    const effectiveMaxLevel = this._mode === 'beginner' ? 1 : this._unlock.maxLevel
+    this._stageIndex = stageIndexFromMaxLevel(effectiveMaxLevel, CONFIG)
+    this._stage      = currentStage(effectiveMaxLevel, CONFIG)
 
     this._targetValue = generateTarget(CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep)
     // 端でクランプ窓が潰れるのを避けたいだけなら target を内側へ寄せてもよいが、
