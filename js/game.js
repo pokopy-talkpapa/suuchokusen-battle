@@ -84,7 +84,8 @@ class Game {
       hitResult:      this._hitResult,
       resultProgress: (this._phase === 'RESULT' && this._resultStart != null)
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
-      timerRemaining: this._timerRemaining,
+      timerRemaining:  this._timerRemaining,
+      backButtonRect:  this._phase !== 'TITLE' ? this._backButtonRect() : null,
     }
   }
 
@@ -155,6 +156,12 @@ class Game {
   _handleMeasureTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
+    const rect = this._canvas.getBoundingClientRect()
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY
+    const x = (clientX - rect.left) * (this._canvas.width  / rect.width)
+    const y = (clientY - rect.top)  * (this._canvas.height / rect.height)
+    if (this._inRect(x, y, this._backButtonRect())) { this._goToTitle(); return }
     if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
     this._advanceFromMeasure()
   }
@@ -200,6 +207,7 @@ class Game {
     const x = (clientX - rect.left) * (this._canvas.width  / rect.width)
     const y = (clientY - rect.top)  * (this._canvas.height / rect.height)
 
+    if (this._inRect(x, y, this._backButtonRect())) { this._goToTitle(); return }
     const b = this._buttonRects()
     if (b.fire && this._inRect(x, y, b.fire)) { this._fireFromButton(); return }
     if (b.zoom && this._inRect(x, y, b.zoom)) { this._aimInput.toggleZoom(); return }
@@ -211,6 +219,25 @@ class Game {
   }
 
   _inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h }
+
+  _backButtonRect() { return { x: 14, y: 14, w: 88, h: 44 } }
+
+  _goToTitle() {
+    clearInterval(this._timerInterval)
+    this._canvas.removeEventListener('click',    this._handleMeasureTap)
+    this._canvas.removeEventListener('touchend', this._handleMeasureTap)
+    this._canvas.removeEventListener('click',    this._handleAimButtons)
+    this._canvas.removeEventListener('touchend', this._handleAimButtons)
+    this._aimInput.detach()
+    this._numpad.hide()
+    this._phase = 'TITLE'
+    this._canvas.addEventListener('click',    (e) => this._onTitleTap(e.offsetX), { once: true })
+    this._canvas.addEventListener('touchend', (e) => {
+      e.preventDefault()
+      const r = this._canvas.getBoundingClientRect()
+      this._onTitleTap((e.changedTouches[0].clientX - r.left) * (this._canvas.width / r.width))
+    }, { once: true, passive: false })
+  }
 
   // 発射／ズームボタンの矩形（renderer.drawFrame と同じ式・単一の真実にするため共有計算）
   _buttonRects() {

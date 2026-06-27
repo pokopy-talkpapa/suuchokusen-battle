@@ -160,7 +160,7 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      const centerY = rulerY - rulerH / 2 - shipH / 2
+      const centerY = rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
         const p = state.resultProgress
@@ -364,6 +364,20 @@ export class Renderer {
       ctx.textAlign = 'right'
       ctx.fillStyle = 'rgba(255,255,255,0.85)'
       ctx.fillText(state.stageName ?? '', cv.width - 20, 32)
+      ctx.restore()
+    }
+
+    // 戻るボタン（TITLE 以外・左上）
+    if (state.backButtonRect) {
+      const b = state.backButtonRect
+      ctx.save()
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      roundRectPath(ctx, b.x, b.y, b.w, b.h, 10)
+      ctx.fill()
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText('◀ もどる', b.x + b.w / 2, b.y + 30)
       ctx.restore()
     }
   }
