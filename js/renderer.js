@@ -59,7 +59,7 @@ export class Renderer {
     // それ以外（結果の横視点など）は従来どおり画面下。
     // MEASURE・RESULT は同じ構図（上に視界・下にUI）。FIRE は横視点のまま。
     const rulerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
-      ? Math.round(cv.height * 0.44)
+      ? Math.round(cv.height * 0.35)
       : this._rulerY()
     // game.js から渡された rulerGeom（MEASURE は大砲先端起点）を優先、なければデフォルト
     const rsx = state.rulerGeom?.rsx ?? this._rulerSX()
@@ -207,9 +207,9 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      // MEASURE・RESULT：船は数直線より下の海に浮かぶ。FIRE：従来の横視点。
+      // MEASURE・RESULT：数直線のすぐ下・テンキーより上に船を表示。FIRE：従来。
       const centerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
-        ? rulerY + shipH * 1.4
+        ? rulerY + shipH * 0.75
         : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
