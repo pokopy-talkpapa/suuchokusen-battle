@@ -152,17 +152,18 @@ export class Renderer {
         ctx.drawImage(img, srcX, 0, srcW, img.height, rsx, rulerY - rh / 2, rw, rh)
         ctx.restore()
 
-        // 両端だけ数字（0・最大値）
-        ctx.textAlign = 'center'
-        ;[state.zoomMin, state.zoomMax].forEach((value) => {
+        // 両端だけ数字（0・最大値）。右ラベルは right 揃えでフレームに隠れないように
+        ;[state.zoomMin, state.zoomMax].forEach((value, i) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           ctx.font = 'bold 24px sans-serif'
+          ctx.textAlign = i === 0 ? 'left' : 'right'
           ctx.lineWidth = 5
           ctx.strokeStyle = 'rgba(255,255,255,0.9)'
           ctx.strokeText(String(value), x, rulerY - 18)
           ctx.fillStyle = '#111'
           ctx.fillText(String(value), x, rulerY - 18)
         })
+        ctx.textAlign = 'center'
       } else {
         const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
@@ -185,7 +186,7 @@ export class Renderer {
           ctx.stroke()
         })
 
-        ;[state.zoomMin, state.zoomMax].forEach((value) => {
+        ;[state.zoomMin, state.zoomMax].forEach((value, i) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           ctx.strokeStyle = '#3C2415'
           ctx.lineWidth = 5
@@ -195,11 +196,13 @@ export class Renderer {
           ctx.stroke()
           ctx.font = 'bold 26px sans-serif'
           ctx.lineWidth = 6
+          ctx.textAlign = i === 0 ? 'left' : 'right'
           ctx.strokeStyle = 'rgba(255,255,255,0.95)'
           ctx.strokeText(String(value), x, rulerY - 36)
           ctx.fillStyle = '#3C2415'
           ctx.fillText(String(value), x, rulerY - 36)
         })
+        ctx.textAlign = 'center'
       }
     }
 
