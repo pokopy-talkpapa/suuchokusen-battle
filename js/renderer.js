@@ -57,7 +57,10 @@ export class Renderer {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
     // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
     // それ以外（結果の横視点など）は従来どおり画面下。
-    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.62) : this._rulerY()
+    // MEASURE・RESULT は同じ構図（上に視界・下にUI）。FIRE は横視点のまま。
+    const rulerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
+      ? Math.round(cv.height * 0.44)
+      : this._rulerY()
     // game.js から渡された rulerGeom（MEASURE は大砲先端起点）を優先、なければデフォルト
     const rsx = state.rulerGeom?.rsx ?? this._rulerSX()
     const rex = state.rulerGeom?.rex ?? this._rulerEX()
@@ -66,15 +69,15 @@ export class Renderer {
     ctx.clearRect(0, 0, cv.width, cv.height)
 
     // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / MEASURE=海のみ / それ以外=横視点の舞台。
-    const bgName = (state.phase === 'TITLE')          ? 'title-bg'
-                 : (state.phase === 'AIM')            ? 'aim-pov'
-                 : (state.phase === 'MEASURE')        ? 'sea-open'
-                 : /* FIRE / RESULT */                  'stage-bg'
+    const bgName = (state.phase === 'TITLE')                    ? 'title-bg'
+                 : (state.phase === 'AIM')                     ? 'aim-pov'
+                 : (state.phase === 'MEASURE' || state.phase === 'RESULT') ? 'sea-open'
+                 : /* FIRE */                                     'stage-bg'
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
-      if (state.phase === 'MEASURE') {
-        // 上72%だけ表示してキャンバスに引き伸ばす→水平線が下2/3付近に下がる
-        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.72, 0, 0, cv.width, cv.height)
+      if (state.phase === 'MEASURE' || state.phase === 'RESULT') {
+        // 上80%だけ表示→水平線が画面の約59%付近に。数直線（44%）は水面より上に浮く。
+        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.80, 0, 0, cv.width, cv.height)
       } else {
         ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
       }
@@ -126,7 +129,7 @@ export class Renderer {
     }
 
     // 島（MEASURE フェーズ・左端）：大砲の高さが rulerY に来るよう位置合わせ
-    if (state.phase === 'MEASURE' && this._imgs['island-cutout']) {
+    if ((state.phase === 'MEASURE' || state.phase === 'RESULT') && this._imgs['island-cutout']) {
       const img = this._imgs['island-cutout']
       const iW  = cv.width * 0.16                          // 画面幅の16%
       const iH  = iW * (img.height / img.width)            // アスペクト比維持
@@ -204,9 +207,9 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      // MEASURE：船が数直線（水面）の下に浮かぶ。RESULT：数直線に乗る横視点。
-      const centerY = state.phase === 'MEASURE'
-        ? rulerY + shipH * 0.6
+      // MEASURE・RESULT：船は数直線より下の海に浮かぶ。FIRE：従来の横視点。
+      const centerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
+        ? rulerY + shipH * 1.4
         : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
