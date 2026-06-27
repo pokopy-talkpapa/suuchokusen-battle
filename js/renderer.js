@@ -76,8 +76,8 @@ export class Renderer {
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
       if (state.phase === 'MEASURE' || state.phase === 'RESULT') {
-        // 上80%だけ表示→水平線が画面の約59%付近に。数直線（44%）は水面より上に浮く。
-        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.80, 0, 0, cv.width, cv.height)
+        // sea-open.pngの水平線は画像高さ約50%。crop=0.88なら canvas上50/88≈56.8%に来る（0.80だと62.5%で低すぎた）
+        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.88, 0, 0, cv.width, cv.height)
       } else {
         ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
       }
@@ -207,10 +207,10 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      // MEASURE・RESULT：船底が水平線（画面高さ約58%）に乗るよう配置。FIRE：従来。
-      // sea-open.png の水平線は画像高さの約47%・crop=0.80 → canvas上は47/80≈58.75%
+      // MEASURE・RESULT：船底が水平線（canvas上約57%）に乗るよう配置。
+      // 水平線Y = crop(0.88) × imgHorizon(50%) → 56.8% ≈ 0.568H
       const centerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
-        ? Math.round(cv.height * 0.58 - shipH * 0.4)
+        ? Math.round(cv.height * 0.57 - shipH * 0.5)
         : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
