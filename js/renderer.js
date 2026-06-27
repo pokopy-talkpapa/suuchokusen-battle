@@ -56,7 +56,7 @@ export class Renderer {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
     // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
     // それ以外（結果の横視点など）は従来どおり画面下。
-    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.62) : this._rulerY()
+    const rulerY = (state.phase === 'MEASURE') ? Math.round(cv.height * 0.40) : this._rulerY()
     const rsx    = this._rulerSX()
     const rex    = this._rulerEX()
     const rulerH = CFG.RULER.HEIGHT
@@ -160,7 +160,10 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      const centerY = rulerY - shipH / 2
+      // MEASURE：船が数直線（水面）の下に浮かぶ。RESULT：数直線に乗る横視点。
+      const centerY = state.phase === 'MEASURE'
+        ? rulerY + shipH * 0.6
+        : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
         const p = state.resultProgress
@@ -327,7 +330,7 @@ export class Renderer {
       ctx.rect(0, 0, cv.width, cv.height)
       ctx.moveTo(cxR + R, cy); ctx.arc(cxR, cy, R, 0, Math.PI * 2)
       ctx.clip('evenodd')
-      ctx.fillStyle = 'rgba(10,15,20,0.94)'
+      ctx.fillStyle = '#000000'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.restore()
 

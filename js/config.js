@@ -58,7 +58,7 @@ export const CONFIG = {
       targetStep: 100,         // 正解は100の倍数
       aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
       hitMargin: 45,
-      enemyScale: 1.0,
+      enemyScale: 0.55,
     },
     { // 中盤：百十まで読む。射撃は百のまま＝内分。敵=小型船。
       name: '中盤',
