@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js'
 import { valueToX, getMeasureWindow } from './ruler.js'
 import { arcPoints } from './physics.js'
-import { generateTarget, judgeHit } from './measurement.js'
+import { generateTargetInsideWindow, judgeHit } from './measurement.js'
 import { UnlockState } from './unlock.js'
 import { Numpad } from './numpad.js'
 import { AimInput } from './aim.js'
@@ -142,7 +142,12 @@ class Game {
     this._stageIndex = stageIndexFromMaxLevel(effectiveMaxLevel, CONFIG)
     this._stage      = currentStage(effectiveMaxLevel, CONFIG)
 
-    this._targetValue = generateTarget(CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep)
+    // 正解は端(0/1000)にも測量窓の端にも乗せない（船が島や枠に重なるため）
+    const windowSpan = this._stage.measureMode === 'hundred' ? 100
+                     : this._stage.measureMode === 'ten'     ? 10
+                     : null
+    this._targetValue = generateTargetInsideWindow(
+      CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep, windowSpan)
     // 端でクランプ窓が潰れるのを避けたいだけなら target を内側へ寄せてもよいが、
     // getMeasureWindow が端クランプ済なので 0/1000 でも安全。
     const win = getMeasureWindow(this._targetValue, this._stage, CONFIG)

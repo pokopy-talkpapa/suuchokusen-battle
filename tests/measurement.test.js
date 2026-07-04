@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { generateTarget, calcMeasurementError, judgeHit } from '../js/measurement.js'
+import { generateTarget, generateTargetInsideWindow, calcMeasurementError, judgeHit } from '../js/measurement.js'
+import { getMeasureWindow } from '../js/ruler.js'
 import { currentStage } from '../js/stage.js'
 import { CONFIG } from '../js/config.js'
 
@@ -33,6 +34,31 @@ test('generateTarget: tickStep=5 で5の倍数を返す', () => {
     const v = generateTarget(340, 360, 5)
     assert.ok(v >= 340 && v <= 360)
     assert.equal(v % 5, 0)
+  }
+})
+
+test('generateTarget: 端(0/1000)は正解にならない', () => {
+  for (let i = 0; i < 200; i++) {
+    const v = generateTarget(0, 1000, 100)
+    assert.ok(v >= 100 && v <= 900, `端の値が出た: ${v}`)
+  }
+})
+
+test('generateTargetInsideWindow: 中盤(span100)で正解が窓の端に乗らない', () => {
+  const stage = CONFIG.STAGES[1] // 中盤: targetStep=10, measureMode='hundred'
+  for (let i = 0; i < 200; i++) {
+    const t = generateTargetInsideWindow(0, 1000, stage.targetStep, 100)
+    const win = getMeasureWindow(t, stage, CONFIG)
+    assert.ok(t > win.min && t < win.max, `窓の端: target=${t} win=${win.min}〜${win.max}`)
+  }
+})
+
+test('generateTargetInsideWindow: 上級(span10)で正解が窓の端に乗らない', () => {
+  const stage = CONFIG.STAGES[2] // 上級: targetStep=1, measureMode='ten'
+  for (let i = 0; i < 200; i++) {
+    const t = generateTargetInsideWindow(0, 1000, stage.targetStep, 10)
+    const win = getMeasureWindow(t, stage, CONFIG)
+    assert.ok(t > win.min && t < win.max, `窓の端: target=${t} win=${win.min}〜${win.max}`)
   }
 })
 
