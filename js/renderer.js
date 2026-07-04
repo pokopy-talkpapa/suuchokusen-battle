@@ -112,8 +112,18 @@ export class Renderer {
         ctx.font = '18px sans-serif'
         ctx.fillText(sub, cx, by + 90)
       }
-      drawBtn(cv.width * 0.27, '#2e8b57', 'しょしんしゃ', 'じっくり・ヒントあり')
-      drawBtn(cv.width * 0.73, '#c0531f', 'じょうきゅう', 'じかんせいげん・きおく')
+      // モード＝入力のしかたの違いだけ（難易度はランクが決める）
+      drawBtn(cv.width * 0.27, '#2e8b57', 'よんでうつ', 'テンキーで かきとめる')
+      drawBtn(cv.width * 0.73, '#c0531f', 'おぼえてうつ', 'じかんせいげんで きおく')
+
+      // 現在のランクと自己ベスト（ボタンの下）
+      if (state.rank) {
+        ctx.font = 'bold 20px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillStyle = '#ffdd00'
+        const bestText = state.score && state.score.best > 0 ? `　じこベスト ${state.score.best}てん` : ''
+        ctx.fillText(`ランク：${state.rank.name}${bestText}`, cv.width / 2, by + bh + 38)
+      }
 
       // バージョン番号（右下）
       ctx.font = '16px sans-serif'
@@ -364,6 +374,48 @@ export class Renderer {
         state.hitResult === 'HIT' ? '命中！🎯' : 'はずれ💦',
         cv.width / 2, cv.height / 2 - 20
       )
+
+      // スコア（1発の点数＋セットの進み）
+      if (state.score && state.score.last != null) {
+        const s = state.score
+        ctx.font = 'bold 34px sans-serif'
+        ctx.lineWidth = 5
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+        ctx.fillStyle = s.last > 0 ? '#ffdd00' : '#dddddd'
+        ctx.strokeText(`+${s.last}てん`, cv.width / 2, cv.height / 2 + 26)
+        ctx.fillText(`+${s.last}てん`, cv.width / 2, cv.height / 2 + 26)
+
+        ctx.font = 'bold 19px sans-serif'
+        ctx.lineWidth = 4
+        ctx.fillStyle = '#ffffff'
+        const setLine = `${s.shotCount}/${s.setSize}はつ　ごうけい ${s.setTotal}てん`
+        ctx.strokeText(setLine, cv.width / 2, cv.height / 2 + 56)
+        ctx.fillText(setLine, cv.width / 2, cv.height / 2 + 56)
+
+        if (s.setFinished) {
+          ctx.font = 'bold 24px sans-serif'
+          ctx.fillStyle = '#ffdd00'
+          const doneLine = s.newBest ? `セットかんりょう！ じこベストこうしん ${s.best}てん！` : 'セットかんりょう！'
+          ctx.strokeText(doneLine, cv.width / 2, cv.height / 2 + 90)
+          ctx.fillText(doneLine, cv.width / 2, cv.height / 2 + 90)
+        }
+      }
+
+      // ランクアップ演出（金のフラッシュ＋バナー）
+      if (state.rankUp && state.rankUpName) {
+        if (rp < 0.22) {
+          const f = (0.22 - rp) / 0.22
+          ctx.fillStyle = `rgba(255,221,0,${f * 0.5})`
+          ctx.fillRect(0, 0, cv.width, cv.height)
+        }
+        ctx.font = 'bold 34px sans-serif'
+        ctx.lineWidth = 6
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+        ctx.fillStyle = '#ffdd00'
+        const banner = `⭐ ランクアップ！ ${state.rankUpName} ⭐`
+        ctx.strokeText(banner, cv.width / 2, 84)
+        ctx.fillText(banner, cv.width / 2, 84)
+      }
     }
 
     // 双眼鏡の覗き込み（MEASURE中）：レンズ外を黒で塞ぎ、その上に枠PNGを重ねる。
@@ -414,13 +466,39 @@ export class Renderer {
       ctx.fillText(hint, cv.width / 2, 40)
     }
 
-    // 段階名（右上・常時）
-    if (state.phase === 'MEASURE') {
+    // ランクと連続命中メーター（右上・測量中）：上達の道を見える化
+    if (state.phase === 'MEASURE' && state.rank) {
+      const r = state.rank
       ctx.save()
       ctx.font = 'bold 20px sans-serif'
       ctx.textAlign = 'right'
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'
-      ctx.fillText(state.stageName ?? '', cv.width - 20, 32)
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fillText(r.name, cv.width - 20, 32)
+      if (r.needed != null) {
+        // 次のランクまでのメーター（●=連続命中）右揃え
+        const rad = 7, gap = 20
+        const endX = cv.width - 20 - rad
+        for (let i = 0; i < r.needed; i++) {
+          const x = endX - (r.needed - 1 - i) * gap
+          ctx.beginPath()
+          ctx.arc(x, 52, rad, 0, Math.PI * 2)
+          ctx.fillStyle = i < Math.min(r.streak, r.needed) ? '#ffdd00' : 'rgba(255,255,255,0.30)'
+          ctx.fill()
+          ctx.lineWidth = 2
+          ctx.strokeStyle = 'rgba(0,0,0,0.45)'
+          ctx.stroke()
+        }
+        if (r.remaining > 0) {
+          ctx.font = 'bold 15px sans-serif'
+          ctx.fillStyle = 'rgba(255,255,255,0.85)'
+          ctx.fillText(`あと${r.remaining}かいで ${r.nextName}`, cv.width - 20, 80)
+        }
+      } else {
+        // 最高ランク：連続記録を見せる
+        ctx.font = 'bold 15px sans-serif'
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        ctx.fillText(`れんぞく ${r.streak}かい`, cv.width - 20, 56)
+      }
       ctx.restore()
     }
 

@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.19'
+export const VERSION = 'v1.20'
 
 export const CONFIG = {
   RULER: {
@@ -39,22 +39,28 @@ export const CONFIG = {
   TIMER: {
     MEASURE_SEC: 15,     // 測量フェーズの制限時間（秒）
   },
+  // モード＝「入力のしかた」の違いだけ。難易度（段階）は連続命中ランクが決める（両モード共通）。
   MODES: {
-    // 初級：テンキーで打ち込む・時間制限なし・打った数がメモになる
+    // よんでうつ：テンキーで打ち込む・時間制限なし・打った数がメモになる
     beginner: { showMemo: true,  showNumpad: true,  measureTimer: false },
-    // 上級：テンキー無し・読んで記憶・時間で自動的に発射フェーズへ
+    // おぼえてうつ：テンキー無し・読んで記憶・時間で自動的に発射フェーズへ
     expert:   { showMemo: false, showNumpad: false, measureTimer: true  },
+  },
+  SCORE: {
+    MAX: 100,          // ど真ん中の点数
+    MIN_AT_EDGE: 60,   // 命中圏ぎりぎりの点数（外れは0点）
+    SET_SIZE: 10,      // 1セットの発数（合計点で自己ベストを競う）
   },
   UNLOCK: {
     BINOCULARS_STREAK: 3, // 双眼鏡（レベル2）解放に必要な連続命中数
     TELESCOPE_STREAK: 6,  // 望遠鏡（レベル3）解放に必要な連続命中数
     HIT_MARGIN_VALUE: 30, // 着弾「命中」の許容誤差（value単位、0〜1000スケール）
   },
-  // 段階別パラメータ（序盤→中盤→上級）。maxLevel 1/2/3 に対応。
-  // hitMargin・enemyScale はぽこぴぃ調整前提のデフォルト値。
+  // 段階＝連続命中ランク（みならい→いっちょまえ→でんせつ）。maxLevel 1/2/3 に対応・両モード共通。
+  // name はランク名として画面に表示される。hitMargin・enemyScale はぽこぴぃ調整前提のデフォルト値。
   STAGES: [
-    { // 序盤：百だけ。位置記憶OK（やさしい）。敵=大きい船。
-      name: '序盤',
+    { // みならい：百だけ。位置記憶OK（やさしい）。
+      name: 'みならい砲手',
       measureMode: 'full',     // 測量は 0〜1000 全体（百の目盛り）
       measureTickStep: 100,
       targetStep: 100,         // 正解は100の倍数
@@ -62,8 +68,8 @@ export const CONFIG = {
       hitMargin: 45,
       enemyScale: 0.55,
     },
-    { // 中盤：百十まで読む。射撃は百のまま＝内分。敵=小型船。
-      name: '中盤',
+    { // いっちょまえ：百十まで読む。射撃は百のまま＝内分。
+      name: 'いっちょまえ砲手',
       measureMode: 'hundred',  // 測量は target を含む100窓（十の目盛り）
       measureTickStep: 10,
       targetStep: 10,          // 正解は10の倍数
@@ -71,8 +77,8 @@ export const CONFIG = {
       hitMargin: 28,
       enemyScale: 0.55,     // 序盤と同サイズ（大きい船が目盛りを隠すため統一・2026-07-04実機FB）
     },
-    { // 上級：百十一まで読む。射撃はズーム後も百十まで（一の位は想像）。敵=ドローン相当。
-      name: '上級',
+    { // でんせつ：百十一まで読む。射撃はズーム後も百十まで（一の位は想像）。
+      name: 'でんせつの砲手',
       measureMode: 'ten',      // 測量は target を含む10窓（一の目盛り）
       measureTickStep: 1,
       targetStep: 1,           // 正解は1の倍数

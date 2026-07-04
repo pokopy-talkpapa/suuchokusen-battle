@@ -8,7 +8,8 @@ import { Numpad } from './numpad.js'
 import { AimInput } from './aim.js'
 import { isTapOnRect } from './tap.js'
 import { Renderer } from './renderer.js'
-import { currentStage, stageIndexFromMaxLevel } from './stage.js'
+import { currentStage, stageIndexFromMaxLevel, rankInfo } from './stage.js'
+import { calcShotScore, ScoreState } from './score.js'
 
 class Game {
   constructor() {
@@ -17,6 +18,7 @@ class Game {
     this._numpad   = new Numpad()
     this._aimInput = new AimInput()
     this._unlock   = UnlockState.load(CONFIG)
+    this._score    = ScoreState.load(CONFIG.SCORE)
 
     this._mode            = 'beginner'
     this._phase           = 'TITLE'
@@ -37,7 +39,13 @@ class Game {
     this._fireDuration    = 700
     this._resultStart     = null
     this._resultDuration  = 1800
+    this._resultDur       = 1800  // 今回のRESULT表示時間（ランクアップ時は延長）
     this._pressPoint      = null
+    this._lastShotScore   = null
+    this._setFinished     = false
+    this._newBest         = false
+    this._rankUp          = false
+    this._rankUpName      = null
   }
 
   // イベントからキャンバス座標を得る（touchstart/touchend/mouse すべて対応）
@@ -112,7 +120,20 @@ class Game {
       landingX:       this._landingX,
       hitResult:      this._hitResult,
       resultProgress: (this._phase === 'RESULT' && this._resultStart != null)
-                        ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
+                        ? Math.min(1, (performance.now() - this._resultStart) / this._resultDur) : null,
+      // ランク（両モード共通・連続命中で進む）とスコア
+      rank:           rankInfo(this._unlock.maxLevel, this._unlock.streak, CONFIG),
+      score: {
+        last:        this._lastShotScore,
+        shotCount:   this._score.shotCount(),
+        setSize:     CONFIG.SCORE.SET_SIZE,
+        setTotal:    this._score.setTotal(),
+        best:        this._score.best,
+        setFinished: this._setFinished,
+        newBest:     this._newBest,
+      },
+      rankUp:         this._rankUp,
+      rankUpName:     this._rankUpName,
       timerRemaining:  this._timerRemaining,
       // FIRE/RESULT はタップを受けるリスナーが無い（自動で次へ進む）ので、押せないボタンは描かない
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
@@ -136,11 +157,17 @@ class Game {
 
   _startMeasure() {
     this._phase = 'MEASURE'
-    // 段階＝連続命中アンロック maxLevel に対応
-    // 初心者モードは常にステージ0（序盤・小さい数字）に固定
-    const effectiveMaxLevel = this._mode === 'beginner' ? 1 : this._unlock.maxLevel
-    this._stageIndex = stageIndexFromMaxLevel(effectiveMaxLevel, CONFIG)
-    this._stage      = currentStage(effectiveMaxLevel, CONFIG)
+    // 段階＝連続命中ランク（両モード共通）。モードは「入力のしかた」だけの違い。
+    this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
+    this._stage      = currentStage(this._unlock.maxLevel, CONFIG)
+
+    // 前のセットが満了していたら新しいセットを始める
+    if (this._score.isSetFinished()) this._score.startNewSet()
+    this._lastShotScore = null
+    this._setFinished   = false
+    this._newBest       = false
+    this._rankUp        = false
+    this._rankUpName    = null
 
     // 正解は端(0/1000)にも測量窓の端にも乗せない（船が島や枠に重なるため）
     const windowSpan = this._stage.measureMode === 'hundred' ? 100
@@ -312,12 +339,26 @@ class Game {
     this._phase = 'RESULT'
     const isHit = judgeHit(this._landingValue, this._targetValue, this._stage.hitMargin)
     this._hitResult = isHit ? 'HIT' : 'MISS'
+
+    // ランクアップ判定（recordHit 前後の maxLevel 比較）
+    const prevMax = this._unlock.maxLevel
     this._unlock.recordHit(isHit)
     this._unlock.save()
+    this._rankUp = this._unlock.maxLevel > prevMax
+    this._rankUpName = this._rankUp ? currentStage(this._unlock.maxLevel, CONFIG).name : null
+
+    // スコア（誤差→点数・SET_SIZE発で1セット・自己ベスト永続化）
+    this._lastShotScore = calcShotScore(this._landingValue, this._targetValue, this._stage.hitMargin, CONFIG.SCORE)
+    const r = this._score.addShot(this._lastShotScore)
+    this._setFinished = r.finished
+    this._newBest     = r.isNewBest
+    this._score.save()
 
     this._fireStart   = null
     this._resultStart = performance.now()
-    setTimeout(() => this._startMeasure(), this._resultDuration)
+    // ランクアップやセット満了はじっくり見せる
+    this._resultDur = (this._rankUp || this._setFinished) ? 3000 : this._resultDuration
+    setTimeout(() => this._startMeasure(), this._resultDur)
   }
 }
 
