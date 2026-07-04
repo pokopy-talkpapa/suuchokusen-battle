@@ -46,6 +46,7 @@ class Game {
     this._newBest         = false
     this._rankUp          = false
     this._rankUpName      = null
+    this._resetConfirm    = false
   }
 
   // イベントからキャンバス座標を得る（touchstart/touchend/mouse すべて対応）
@@ -66,12 +67,41 @@ class Game {
     // 「押した場所」を常に記録（ボタンは押した点と離した点が同じボタン内のときだけ反応させる）
     this._canvas.addEventListener('touchstart', this._recordPress, { passive: true })
     this._canvas.addEventListener('mousedown',  this._recordPress)
-    this._canvas.addEventListener('click',    (e) => this._onTitleTap(e.offsetX), { once: true })
-    this._canvas.addEventListener('touchend', (e) => { e.preventDefault()
-      const r = this._canvas.getBoundingClientRect()
-      this._onTitleTap((e.changedTouches[0].clientX - r.left) * (this._canvas.width / r.width))
-    }, { once: true, passive: false })
+    this._addTitleListeners()
   }
+
+  _addTitleListeners() {
+    this._canvas.addEventListener('click',    this._handleTitleTap)
+    this._canvas.addEventListener('touchend', this._handleTitleTap, { passive: false })
+  }
+
+  _removeTitleListeners() {
+    this._canvas.removeEventListener('click',    this._handleTitleTap)
+    this._canvas.removeEventListener('touchend', this._handleTitleTap)
+  }
+
+  // タイトルのタップ：ランクリセット（2回押しで確定）／左右でモード選択
+  _handleTitleTap = (e) => {
+    if (e.type === 'touchend') e.preventDefault()
+    if (this._phase !== 'TITLE') return
+    const p = this._eventXY(e)
+    if (isTapOnRect(this._pressPoint, p, this._resetButtonRect())) {
+      if (this._resetConfirm) {
+        this._unlock = new UnlockState(CONFIG) // ランクと連続命中を最初に戻す（じこベストは残す）
+        this._unlock.save()
+        this._resetConfirm = false
+      } else {
+        this._resetConfirm = true
+      }
+      return
+    }
+    this._resetConfirm = false
+    this._mode = p.x > this._canvas.width / 2 ? 'expert' : 'beginner'
+    this._removeTitleListeners()
+    this._startMeasure()
+  }
+
+  _resetButtonRect() { return { x: 14, y: this._canvas.height - 58, w: 210, h: 44 } }
 
   _buildState() {
     // MEASURE フェーズは大砲の先端（画面幅15%）から数直線を始める。他は通常マージン。
@@ -137,6 +167,8 @@ class Game {
       timerRemaining:  this._timerRemaining,
       // FIRE/RESULT はタップを受けるリスナーが無い（自動で次へ進む）ので、押せないボタンは描かない
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
+      resetButton:     this._phase === 'TITLE'
+                         ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
       rulerGeom:       { rsx, rex },
     }
   }
@@ -147,12 +179,6 @@ class Game {
     const ex = this._canvas.width - CONFIG.AIM_PANEL.MARGIN_X
     const y  = this._canvas.height - CONFIG.AIM_PANEL.Y_FROM_BOTTOM
     return { sx, ex, y }
-  }
-
-  _onTitleTap(x) {
-    if (this._phase !== 'TITLE') return
-    this._mode = (x !== undefined && x > this._canvas.width / 2) ? 'expert' : 'beginner'
-    this._startMeasure()
   }
 
   _startMeasure() {
@@ -291,12 +317,8 @@ class Game {
     this._aimInput.detach()
     this._numpad.hide()
     this._phase = 'TITLE'
-    this._canvas.addEventListener('click',    (e) => this._onTitleTap(e.offsetX), { once: true })
-    this._canvas.addEventListener('touchend', (e) => {
-      e.preventDefault()
-      const r = this._canvas.getBoundingClientRect()
-      this._onTitleTap((e.changedTouches[0].clientX - r.left) * (this._canvas.width / r.width))
-    }, { once: true, passive: false })
+    this._resetConfirm = false
+    this._addTitleListeners()
   }
 
   // 発射／ズームボタンの矩形（renderer.drawFrame と同じ式・単一の真実にするため共有計算）

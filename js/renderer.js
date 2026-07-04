@@ -125,6 +125,19 @@ export class Renderer {
         ctx.fillText(`ランク：${state.rank.name}${bestText}`, cv.width / 2, by + bh + 38)
       }
 
+      // ランクリセット（左下・2回押しで確定）
+      if (state.resetButton) {
+        const { rect: rb, confirm } = state.resetButton
+        ctx.fillStyle = confirm ? 'rgba(170,30,30,0.9)' : 'rgba(0,0,0,0.5)'
+        roundRectPath(ctx, rb.x, rb.y, rb.w, rb.h, 10)
+        ctx.fill()
+        ctx.font = 'bold 17px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(confirm ? 'ほんとうに もどす？' : 'ランクを さいしょから',
+                     rb.x + rb.w / 2, rb.y + 28)
+      }
+
       // バージョン番号（右下）
       ctx.font = '16px sans-serif'
       ctx.textAlign = 'right'
