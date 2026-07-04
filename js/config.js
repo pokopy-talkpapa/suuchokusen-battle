@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.17'
+export const VERSION = 'v1.18'
 
 export const CONFIG = {
   RULER: {
@@ -69,7 +69,7 @@ export const CONFIG = {
       targetStep: 10,          // 正解は10の倍数
       aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
       hitMargin: 28,
-      enemyScale: 0.9,
+      enemyScale: 0.55,     // 序盤と同サイズ（大きい船が目盛りを隠すため統一・2026-07-04実機FB）
     },
     { // 上級：百十一まで読む。射撃はズーム後も百十まで（一の位は想像）。敵=ドローン相当。
       name: '上級',
@@ -78,7 +78,7 @@ export const CONFIG = {
       targetStep: 1,           // 正解は1の倍数
       aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
       hitMargin: 14,
-      enemyScale: 0.65,
+      enemyScale: 0.55,     // 序盤と同サイズに統一（2026-07-04実機FB）
     },
   ],
   ENEMY: {
@@ -87,7 +87,7 @@ export const CONFIG = {
     SHIP_HEIGHT: 113,
   },
   AIM_PANEL: {
-    MARGIN_X: 60,        // 照準パネル数直線の左右マージンpx
+    MARGIN_X: 130,       // 照準パネル数直線の左右マージンpx（パネルPNGの木の内側＝左右約12%の金具を避ける）
     HEIGHT: 92,          // パネルPNGの描画高さpx
     Y_FROM_BOTTOM: 70,   // 画面下端からパネル中心までのpx
   },

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { AimInput } from '../js/aim.js'
 import { CONFIG } from '../js/config.js'
 import { judgeHit } from '../js/measurement.js'
-import { valueToX } from '../js/ruler.js'
+import { valueToX, xToValue } from '../js/ruler.js'
 
 // 844x390（横向きスマホ）想定の疑似キャンバス。
 // AimInput が addEventListener したハンドラを直接叩いてタッチを再現する。
@@ -54,7 +54,8 @@ test('パネル帯の中をタッチすると針がそこへ動く', () => {
   canvas.dispatch('touchstart', 400, g.y)
   canvas.dispatch('touchend', 400, g.y)
   const v = aim.getState().needleValue
-  assert.ok(Math.abs(v - 470) < 5, `needle=${v} は 470 付近のはず`)
+  const expected = xToValue(400, 0, 1000, g.sx, g.ex)
+  assert.ok(Math.abs(v - expected) <= 1, `needle=${v} は ${expected} のはず`)
 })
 
 test('「うつ！」ボタン内のタッチでは針が動かない（誤射の根本原因）', () => {

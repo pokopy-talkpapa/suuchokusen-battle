@@ -55,27 +55,22 @@ export class Renderer {
 
   drawFrame(state) {
     const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
-    // 測量中は数直線・船を双眼鏡レンズの中心高さへ上げる（枠PNGの下部に隠れないように）。
-    // それ以外（結果の横視点など）は従来どおり画面下。
-    // MEASURE・RESULT は同じ構図（上に視界・下にUI）。FIRE は横視点のまま。
-    const rulerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
-      ? Math.round(cv.height * 0.35)
-      : this._rulerY()
+    // MEASURE・FIRE・RESULT は同じ構図（数直線=高さ35%・船は水平線）。
+    // 発射→着弾で画面が切り替わる違和感をなくすため FIRE も着弾シーンで描く。
+    const seaView = state.phase === 'MEASURE' || state.phase === 'FIRE' || state.phase === 'RESULT'
+    const rulerY = seaView ? Math.round(cv.height * 0.35) : this._rulerY()
     // game.js から渡された rulerGeom（MEASURE は大砲先端起点）を優先、なければデフォルト
     const rsx = state.rulerGeom?.rsx ?? this._rulerSX()
     const rex = state.rulerGeom?.rex ?? this._rulerEX()
-    const rulerH = CFG.RULER.HEIGHT
-
     ctx.clearRect(0, 0, cv.width, cv.height)
 
-    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / MEASURE=海のみ / それ以外=横視点の舞台。
-    const bgName = (state.phase === 'TITLE')                    ? 'title-bg'
-                 : (state.phase === 'AIM')                     ? 'aim-pov'
-                 : (state.phase === 'MEASURE' || state.phase === 'RESULT') ? 'sea-open'
-                 : /* FIRE */                                     'stage-bg'
+    // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / MEASURE・FIRE・RESULT=海。
+    const bgName = (state.phase === 'TITLE') ? 'title-bg'
+                 : (state.phase === 'AIM')   ? 'aim-pov'
+                 : 'sea-open'
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
-      if (state.phase === 'MEASURE' || state.phase === 'RESULT') {
+      if (seaView) {
         // sea-open.pngの水平線は画像高さ約53%。crop=0.96なら canvas上53/96≈55%に来る
         ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.96, 0, 0, cv.width, cv.height)
       } else {
@@ -128,8 +123,8 @@ export class Renderer {
       return
     }
 
-    // 島（MEASURE フェーズ・左端）：大砲の高さが rulerY に来るよう位置合わせ
-    if ((state.phase === 'MEASURE' || state.phase === 'RESULT') && this._imgs['island-cutout']) {
+    // 島（海の構図・左端）：大砲の高さが rulerY に来るよう位置合わせ
+    if (seaView && this._imgs['island-cutout']) {
       const img = this._imgs['island-cutout']
       const iW  = cv.width * 0.16                          // 画面幅の16%
       const iH  = iW * (img.height / img.width)            // アスペクト比維持
@@ -152,18 +147,20 @@ export class Renderer {
         ctx.drawImage(img, srcX, 0, srcW, img.height, rsx, rulerY - rh / 2, rw, rh)
         ctx.restore()
 
-        // 両端だけ数字（0・最大値）。右ラベルは right 揃えでフレームに隠れないように
-        ;[state.zoomMin, state.zoomMax].forEach((value, i) => {
+        // 両端だけ数字（0・最大値）。端の真上にセンタリング（1000が900の上に見えないように）。
+        // 画面からはみ出す分だけ内側へ寄せる。
+        ;[state.zoomMin, state.zoomMax].forEach((value) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           ctx.font = 'bold 24px sans-serif'
-          ctx.textAlign = i === 0 ? 'left' : 'right'
+          ctx.textAlign = 'center'
+          const hw = ctx.measureText(String(value)).width / 2
+          const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
           ctx.lineWidth = 5
           ctx.strokeStyle = 'rgba(255,255,255,0.9)'
-          ctx.strokeText(String(value), x, rulerY - 18)
+          ctx.strokeText(String(value), lx, rulerY - 18)
           ctx.fillStyle = '#111'
-          ctx.fillText(String(value), x, rulerY - 18)
+          ctx.fillText(String(value), lx, rulerY - 18)
         })
-        ctx.textAlign = 'center'
       } else {
         const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
@@ -186,7 +183,7 @@ export class Renderer {
           ctx.stroke()
         })
 
-        ;[state.zoomMin, state.zoomMax].forEach((value, i) => {
+        ;[state.zoomMin, state.zoomMax].forEach((value) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           ctx.strokeStyle = '#3C2415'
           ctx.lineWidth = 5
@@ -194,15 +191,17 @@ export class Renderer {
           ctx.moveTo(x, rulerY - 30)
           ctx.lineTo(x, rulerY + 30)
           ctx.stroke()
+          // 端の真上にセンタリング。画面からはみ出す分だけ内側へ寄せる
           ctx.font = 'bold 26px sans-serif'
+          ctx.textAlign = 'center'
+          const hw = ctx.measureText(String(value)).width / 2
+          const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
           ctx.lineWidth = 6
-          ctx.textAlign = i === 0 ? 'left' : 'right'
           ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-          ctx.strokeText(String(value), x, rulerY - 36)
+          ctx.strokeText(String(value), lx, rulerY - 36)
           ctx.fillStyle = '#3C2415'
-          ctx.fillText(String(value), x, rulerY - 36)
+          ctx.fillText(String(value), lx, rulerY - 36)
         })
-        ctx.textAlign = 'center'
       }
     }
 
@@ -211,9 +210,9 @@ export class Renderer {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
-      // MEASURE・RESULT：船底が水平線（canvas上約55%）に乗るよう配置。
+      // 海の構図：船底が水平線（canvas上約55%）に乗るよう配置。
       // 水平線Y = imgHorizon(53%) / crop(0.96) → 55.2% ≈ 0.552H
-      const centerY = (state.phase === 'MEASURE' || state.phase === 'RESULT')
+      const centerY = seaView
         ? Math.round(cv.height * 0.55 - shipH * 0.5)
         : rulerY - shipH / 2
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
@@ -250,13 +249,14 @@ export class Renderer {
       const { sx, ex, y } = state.panelGeom
       const a = state.aim
 
-      // 照準パネル PNG（土台）
+      // 照準パネル PNG（土台）：画面幅いっぱいに固定で描き、数直線（sx〜ex）は
+      // PNGの木の内側（左右の金具＝約12%を除いた領域）に収める。
       const ph = CFG.AIM_PANEL.HEIGHT
       if (this._imgs['aim-panel']) {
-        ctx.drawImage(this._imgs['aim-panel'], sx - 30, y - ph / 2, (ex - sx) + 60, ph)
+        ctx.drawImage(this._imgs['aim-panel'], 20, y - ph / 2, cv.width - 40, ph)
       } else {
         ctx.fillStyle = '#caa05a'
-        roundRectPath(ctx, sx - 30, y - ph / 2, (ex - sx) + 60, ph, 16); ctx.fill()
+        roundRectPath(ctx, 20, y - ph / 2, cv.width - 40, ph, 16); ctx.fill()
       }
 
       // パネル上の数直線（全体スケール or 上級ズーム窓）
@@ -271,7 +271,8 @@ export class Renderer {
         const tH = isMajor ? 18 : 9
         ctx.lineWidth = isMajor ? 2 : 1
         ctx.beginPath(); ctx.moveTo(tx, y - tH / 2); ctx.lineTo(tx, y + tH / 2); ctx.stroke()
-        if (isMajor) ctx.fillText(String(value), tx, y - tH / 2 - 4)
+        // 数字は線の下側（上側だと針のつまみと重なって読めない）
+        if (isMajor) ctx.fillText(String(value), tx, y + tH / 2 + 16)
       })
 
       // 針（つまみ）
@@ -337,22 +338,23 @@ export class Renderer {
         ctx.fillStyle = `rgba(255,255,255,${f * 0.7})`
         ctx.fillRect(0, 0, cv.width, cv.height)
       }
+      // 着弾は船の浮かぶ水平線（canvas高さ55%）で見せる
+      const splashY = Math.round(cv.height * 0.55)
       if (state.hitResult === 'HIT' && this._imgs['splash']) {
         // 命中の爆発：序盤に大きく出て、徐々に薄く消える
         const a = rp < 0.45 ? 1 : Math.max(0, 1 - (rp - 0.45) / 0.3)
         if (a > 0) {
           const burst = 130
-          const by = rulerY - rulerH / 2 - CFG.ENEMY.SHIP_HEIGHT * 0.5
           ctx.save()
           ctx.globalAlpha = a
-          ctx.drawImage(this._imgs['splash'], state.landingX - burst / 2, by - burst / 2, burst, burst)
+          ctx.drawImage(this._imgs['splash'], state.landingX - burst / 2, splashY - burst * 0.75, burst, burst)
           ctx.restore()
         }
       } else if (state.hitResult !== 'HIT') {
         // はずれ：水しぶき
         ctx.fillStyle = '#4488ff'
         ctx.beginPath()
-        ctx.arc(state.landingX, rulerY, 22, 0, Math.PI * 2)
+        ctx.arc(state.landingX, splashY, 22, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.font = 'bold 52px sans-serif'
@@ -396,11 +398,11 @@ export class Renderer {
 
     // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
     if (state.phase === 'MEASURE' && state.timerRemaining != null) {
-      // タイマー（左上）
+      // タイマー（左上・もどるボタンの右隣。ボタンの真下に描くと隠れて見えない）
       ctx.font = 'bold 30px sans-serif'
       ctx.textAlign = 'left'
       ctx.fillStyle = state.timerRemaining <= 5 ? '#ff5555' : '#ffffff'
-      ctx.fillText(`⏱ ${state.timerRemaining}`, 20, 46)
+      ctx.fillText(`⏱ ${state.timerRemaining}`, 116, 46)
       // 「読んで覚えたら そらをタップで発射へ」ヒント（上中央）
       ctx.font = 'bold 22px sans-serif'
       ctx.textAlign = 'center'

@@ -74,22 +74,28 @@ class Game {
     const rex = this._phase === 'MEASURE'
       ? Math.round(this._canvas.width * 0.88)
       : this._canvas.width - CONFIG.RULER.MARGIN_X
-    const enemyX = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
+    // FIRE/RESULT は「答え合わせ」＝全体スケール（0〜1000）で見せる。
+    // 測量窓のままだと着弾X（全体スケール）と目盛りが食い違い、正しく撃っても見た目がズレる。
+    const fullView = this._phase === 'FIRE' || this._phase === 'RESULT'
+    const vMin  = fullView ? CONFIG.RULER.MIN : this._zoomMin
+    const vMax  = fullView ? CONFIG.RULER.MAX : this._zoomMax
+    const vTick = fullView ? 100 : this._tickStep
+    const enemyX = valueToX(this._targetValue, vMin, vMax, rsx, rex)
 
     const panelGeom = this._panelGeom()
     const aimState  = (this._phase === 'AIM') ? this._aimInput.getState() : null
 
     return {
       phase:          this._phase,
-      zoomMin:        this._zoomMin,
-      zoomMax:        this._zoomMax,
-      tickStep:       this._tickStep,
+      zoomMin:        vMin,
+      zoomMax:        vMax,
+      tickStep:       vTick,
       targetValue:    this._targetValue,
       enemyX,
       stageIndex:     this._stageIndex,
       stageName:      this._stage.name,
-      // 測量で船を見せるのは「窓の中だけ」。RESULT は横視点で正解位置に船を出す（リール無し＝次は別の的）。
-      showShip:       this._phase === 'MEASURE' || this._phase === 'RESULT',
+      // 測量は窓の中、FIRE/RESULT は着弾シーン（同じ構図）で正解位置に船を出す。
+      showShip:       this._phase === 'MEASURE' || this._phase === 'FIRE' || this._phase === 'RESULT',
       // 敵船は showShip(MEASURE/RESULT のみ)で制御し、AIM/FIRE は一人称/横視点の背景が隠す。
       // 霧の白オーバーレイは背景アートを白く潰すため廃止。
       fog:            0,
@@ -277,16 +283,21 @@ class Game {
     this._canvas.removeEventListener('touchend', this._handleAimButtons)
     this._phase = 'FIRE'
 
+    // FIRE は RESULT と同じ着弾シーン構図（数直線=高さ35%・島の大砲から水平線へ撃つ）。
+    // 発射→着弾で画面が切り替わる違和感をなくすため、最初から答え合わせの画面で飛ばす。
+    const cv  = this._canvas
     const rsx = CONFIG.RULER.MARGIN_X
-    const rex = this._canvas.width - CONFIG.RULER.MARGIN_X
-    const rulerY  = this._canvas.height - CONFIG.RULER.Y_FROM_BOTTOM
-    const cannonX = CONFIG.CANNON.X_FROM_LEFT
-    const cannonY = rulerY + CONFIG.CANNON.Y_FROM_RULER
+    const rex = cv.width - CONFIG.RULER.MARGIN_X
+    // 砲口＝island-cutout の絵の中の大砲の先端（島は幅16%・大砲が rulerY 付近に来る配置）
+    const rulerY  = Math.round(cv.height * 0.35)
+    const cannonX = Math.round(cv.width * 0.144)
+    const cannonY = Math.round(rulerY + cv.width * 0.021)
+    const waterY  = Math.round(cv.height * 0.55) // 船が浮く水平線
 
-    // 着水点＝置いた値そのもの（ブレなし）。横視点 0〜1000 で x に変換。
+    // 着水点＝置いた値そのもの（ブレなし）。全体スケール 0〜1000 で x に変換。
     this._landingValue = value
     this._landingX = valueToX(value, CONFIG.RULER.MIN, CONFIG.RULER.MAX, rsx, rex)
-    this._firedArc = arcPoints(cannonX, cannonY, this._landingX, rulerY, 36, 180)
+    this._firedArc = arcPoints(cannonX, cannonY, this._landingX, waterY, 36, 140)
 
     this._fireStart = performance.now()
     setTimeout(() => this._showResult(), this._fireDuration)
