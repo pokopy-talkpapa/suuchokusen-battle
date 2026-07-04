@@ -6,6 +6,7 @@ import { generateTarget, judgeHit } from './measurement.js'
 import { UnlockState } from './unlock.js'
 import { Numpad } from './numpad.js'
 import { AimInput } from './aim.js'
+import { isTapOnRect } from './tap.js'
 import { Renderer } from './renderer.js'
 import { currentStage, stageIndexFromMaxLevel } from './stage.js'
 
@@ -36,11 +37,27 @@ class Game {
     this._fireDuration    = 700
     this._resultStart     = null
     this._resultDuration  = 1800
+    this._pressPoint      = null
   }
+
+  // イベントからキャンバス座標を得る（touchstart/touchend/mouse すべて対応）
+  _eventXY(e) {
+    const rect = this._canvas.getBoundingClientRect()
+    const pt = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e
+    return {
+      x: (pt.clientX - rect.left) * (this._canvas.width  / rect.width),
+      y: (pt.clientY - rect.top)  * (this._canvas.height / rect.height),
+    }
+  }
+
+  _recordPress = (e) => { this._pressPoint = this._eventXY(e) }
 
   async start() {
     await this._renderer.init(this._canvas, CONFIG)
     this._renderer.startLoop(() => this._buildState())
+    // 「押した場所」を常に記録（ボタンは押した点と離した点が同じボタン内のときだけ反応させる）
+    this._canvas.addEventListener('touchstart', this._recordPress, { passive: true })
+    this._canvas.addEventListener('mousedown',  this._recordPress)
     this._canvas.addEventListener('click',    (e) => this._onTitleTap(e.offsetX), { once: true })
     this._canvas.addEventListener('touchend', (e) => { e.preventDefault()
       const r = this._canvas.getBoundingClientRect()
@@ -91,7 +108,8 @@ class Game {
       resultProgress: (this._phase === 'RESULT' && this._resultStart != null)
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDuration) : null,
       timerRemaining:  this._timerRemaining,
-      backButtonRect:  this._phase !== 'TITLE' ? this._backButtonRect() : null,
+      // FIRE/RESULT はタップを受けるリスナーが無い（自動で次へ進む）ので、押せないボタンは描かない
+      backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
       rulerGeom:       { rsx, rex },
     }
   }
@@ -163,12 +181,8 @@ class Game {
   _handleMeasureTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
-    const rect = this._canvas.getBoundingClientRect()
-    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX
-    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY
-    const x = (clientX - rect.left) * (this._canvas.width  / rect.width)
-    const y = (clientY - rect.top)  * (this._canvas.height / rect.height)
-    if (this._inRect(x, y, this._backButtonRect())) { this._goToTitle(); return }
+    const p = this._eventXY(e)
+    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._goToTitle(); return }
     if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
     this._advanceFromMeasure()
   }
@@ -198,34 +212,35 @@ class Game {
     this._phase = 'AIM'
     this._aimInput.setStage(this._stage)
     // 発射はボタン（_handleAimButtons→_fireFromButton）で行う。AimInput はコールバックを取らない。
-    this._aimInput.attach(this._canvas, CONFIG, this._panelGeom())
+    // ジオメトリは getter 渡し（リサイズしても描画と入力がズレない）。
+    // ボタンの上では針をつかませない（触れた瞬間に針が飛んで必ず外れるバグの根本対策）
+    this._aimInput.attach(this._canvas, CONFIG, () => this._panelGeom(), () => {
+      const b = this._buttonRects()
+      return [this._backButtonRect(), b.fire, b.zoom]
+    })
     // 発射ボタン／ズームボタンのタップを受ける（renderer がボタン矩形を描き、ここで当たり判定）
     this._canvas.addEventListener('click',    this._handleAimButtons)
     this._canvas.addEventListener('touchend', this._handleAimButtons, { passive: false })
   }
 
   // AIM 中のボタン当たり判定（発射・上級ズーム）。矩形は renderer と同じ計算式を使う。
+  // ボタンは「押した点と離した点が同じボタン内」のときだけ反応。
+  // ドラッグの指をボタンの上で離しただけで発射／タイトル戻りする誤動作を防ぐ。
   _handleAimButtons = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'AIM') return
-    const rect = this._canvas.getBoundingClientRect()
-    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX
-    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY
-    const x = (clientX - rect.left) * (this._canvas.width  / rect.width)
-    const y = (clientY - rect.top)  * (this._canvas.height / rect.height)
+    const p = this._eventXY(e)
 
-    if (this._inRect(x, y, this._backButtonRect())) { this._goToTitle(); return }
+    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._goToTitle(); return }
     const b = this._buttonRects()
-    if (b.fire && this._inRect(x, y, b.fire)) { this._fireFromButton(); return }
-    if (b.zoom && this._inRect(x, y, b.zoom)) { this._aimInput.toggleZoom(); return }
+    if (b.fire && isTapOnRect(this._pressPoint, p, b.fire)) { this._fireFromButton(); return }
+    if (b.zoom && isTapOnRect(this._pressPoint, p, b.zoom)) { this._aimInput.toggleZoom(); return }
   }
 
   _fireFromButton() {
     const st = this._aimInput.getState()
     this._fire(st.needleValue)
   }
-
-  _inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h }
 
   _backButtonRect() { return { x: 14, y: 14, w: 88, h: 44 } }
 
@@ -292,3 +307,4 @@ class Game {
 
 const game = new Game()
 game.start()
+window.__game = game // デバッグ・自動テスト用（描画や判定には不使用）

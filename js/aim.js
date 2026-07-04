@@ -12,7 +12,7 @@ export class AimInput {
   constructor() {
     this._canvas    = null
     this._CONFIG    = null
-    this._geom      = null   // { sx, ex, y }
+    this._getGeom   = null   // () => { sx, ex, y }（毎回呼ぶ＝リサイズ追従）
     this._stage     = null
     this._panelMin  = 0
     this._panelMax  = 1000
@@ -58,31 +58,48 @@ export class AimInput {
   }
 
   _needleX() {
-    return valueToX(this._needleVal, this._panelMin, this._panelMax, this._geom.sx, this._geom.ex)
+    const g = this._getGeom()
+    return valueToX(this._needleVal, this._panelMin, this._panelMax, g.sx, g.ex)
   }
 
-  attach(canvas, CONFIG, panelGeom) {
-    this._canvas = canvas
-    this._CONFIG = CONFIG
-    this._geom   = panelGeom
+  // getPanelGeom / getBlockedRects は毎回呼ぶ関数で渡す。
+  // スナップショットで持つと、AIM中のリサイズ（iOSツールバー収納・回転）で
+  // 描画と入力の座標がズレて「見た目どおりに置いたのに違う値」になる。
+  attach(canvas, CONFIG, getPanelGeom, getBlockedRects = null) {
+    this._canvas  = canvas
+    this._CONFIG  = CONFIG
+    this._getGeom = (typeof getPanelGeom === 'function') ? getPanelGeom : () => getPanelGeom
+    this._getBlockedRects = getBlockedRects
 
-    const toX = (clientX) => {
+    const toXY = (pt) => {
       const rect = canvas.getBoundingClientRect()
-      return (clientX - rect.left) * (canvas.width / rect.width)
+      return {
+        x: (pt.clientX - rect.left) * (canvas.width  / rect.width),
+        y: (pt.clientY - rect.top)  * (canvas.height / rect.height),
+      }
     }
     const setFromX = (x) => {
-      const sx = this._geom.sx, ex = this._geom.ex
+      const { sx, ex } = this._getGeom()
       const cx = Math.max(sx, Math.min(ex, x))
       this._needleVal = xToValue(cx, this._panelMin, this._panelMax, sx, ex)
+    }
+    const inBlockedRect = (x, y) => {
+      const rects = this._getBlockedRects ? this._getBlockedRects() : []
+      return rects.some(r => r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h)
     }
 
     const onStart = (e) => {
       const pt = e.touches ? e.touches[0] : e
-      const x  = toX(pt.clientX)
+      const { x, y } = toXY(pt)
+      const g = this._getGeom()
+      // ボタンの上は針をつかまない（「うつ！」に触れた瞬間に針が飛ぶ誤射バグの根本対策）
+      if (inBlockedRect(x, y)) return
+      // パネル帯の近く（縦方向）だけつかめる。空や敵船へのタッチで針を動かさない。
+      if (Math.abs(y - g.y) > CONFIG.AIM_PANEL.HEIGHT) return
       // 針付近をつかんだ時だけドラッグ開始（つまみやすさ）。
       // それ以外でも、パネル帯の範囲内なら即その位置へ針を移動して掴む。
       if (Math.abs(x - this._needleX()) <= CONFIG.NEEDLE.GRAB_PAD ||
-          (x >= this._geom.sx && x <= this._geom.ex)) {
+          (x >= g.sx && x <= g.ex)) {
         this._dragging = true
         setFromX(x)
       }
@@ -91,7 +108,7 @@ export class AimInput {
       if (!this._dragging) return
       e.preventDefault()
       const pt = e.touches ? e.touches[0] : e
-      setFromX(toX(pt.clientX))
+      setFromX(toXY(pt).x)
     }
     const onEnd = () => { this._dragging = false }
 
