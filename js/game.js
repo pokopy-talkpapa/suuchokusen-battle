@@ -181,6 +181,14 @@ class Game {
     const vMin  = fullView ? CONFIG.RULER.MIN : (zoomDisp ? zoomDisp.min : this._zoomMin)
     const vMax  = fullView ? CONFIG.RULER.MAX : (zoomDisp ? zoomDisp.max : this._zoomMax)
     const vTick = fullView ? 100 : (zoomDisp ? this._tickStepForSpan(vMax - vMin) : this._tickStep)
+    // ズーム中は端の数字を「補間した半端な数値」でなく、旧→新のクロスフェードで見せたい。
+    // そのため旧値（fromMin/fromMax）と進行度（t）に加え、新値（＝目標値。this._zoomMin/_zoomMaxは
+    // 補間されず常に確定値のまま）も渡す。表示用のvMin/vMaxは補間中の半端な数値なのでラベルには使わない。
+    const zoomAnimT       = zoomDisp ? zoomDisp.t : null
+    const zoomAnimFromMin = zoomDisp ? zoomDisp.fromMin : null
+    const zoomAnimFromMax = zoomDisp ? zoomDisp.fromMax : null
+    const zoomAnimToMin   = zoomDisp ? this._zoomMin : null
+    const zoomAnimToMax   = zoomDisp ? this._zoomMax : null
     const enemyX = valueToX(this._targetValue, vMin, vMax, rsx, rex)
 
     const panelGeom = this._panelGeom()
@@ -248,18 +256,27 @@ class Game {
                          ? { rects: this._soundButtonRects(),
                              sfxOn: this._audio.sfxOn, bgmOn: this._audio.bgmOn } : null,
       rulerGeom:       { rsx, rex },
+      // ズーム遷移中のみ非null。端の数字クロスフェード＆数直線の強調演出に使う。
+      zoomAnimT:       zoomAnimT,
+      zoomAnimFromMin: zoomAnimFromMin,
+      zoomAnimFromMax: zoomAnimFromMax,
+      zoomAnimToMin:   zoomAnimToMin,
+      zoomAnimToMax:   zoomAnimToMax,
     }
   }
 
   // ズーム中の表示範囲を計算（easeOutCubicで補間）。完了したら _zoomAnim を消して以後は目標値をそのまま返す。
+  // t・fromMin/fromMax も返す＝端の数字を「補間した半端な数値」でなく旧→新のクロスフェードで見せるため。
   _displayedZoom() {
-    if (!this._zoomAnim) return { min: this._zoomMin, max: this._zoomMax }
+    if (!this._zoomAnim) return { min: this._zoomMin, max: this._zoomMax, t: null, fromMin: null, fromMax: null }
     const t = Math.min(1, (performance.now() - this._zoomAnim.start) / this._zoomAnim.duration)
     const e = easeOutCubic(t)
     const min = lerp(this._zoomAnim.fromMin, this._zoomAnim.toMin, e)
     const max = lerp(this._zoomAnim.fromMax, this._zoomAnim.toMax, e)
+    const fromMin = this._zoomAnim.fromMin
+    const fromMax = this._zoomAnim.fromMax
     if (t >= 1) this._zoomAnim = null
-    return { min, max }
+    return { min, max, t, fromMin, fromMax }
   }
 
   // ズームアニメ中の目盛り間隔＝いま見えている幅から動的に決める（1000幅に1目盛りだと目盛りが多すぎるため）

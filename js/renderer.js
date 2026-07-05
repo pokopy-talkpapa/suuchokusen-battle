@@ -171,8 +171,14 @@ export class Renderer {
     // ＝ズームした実感が出ない原因になっていたため MEASURE 専用の分岐は廃止（2026-07-05）。
     if (state.phase !== 'AIM') {
       const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
+      // ズーム遷移中は数直線全体を金色にパルスさせ「今ここがタップされて広がっている」ことを強調する。
+      // 0→1→0（サイン波）で1回だけ光らせる＝タップした区間の強調表示（点滅）の代わり。
+      const flash = state.zoomAnimT != null ? Math.sin(Math.min(1, state.zoomAnimT) * Math.PI) : 0
+      const rulerColor = flash > 0
+        ? `rgb(${Math.round(60 + flash * 195)}, ${Math.round(36 + flash * 140)}, ${Math.round(21 - flash * 21)})`
+        : '#3C2415'
 
-        ctx.strokeStyle = '#3C2415'
+        ctx.strokeStyle = rulerColor
         ctx.lineWidth = 4
         ctx.beginPath()
         ctx.moveTo(rsx, rulerY)
@@ -183,7 +189,7 @@ export class Renderer {
         ticks.forEach(({ value, isMajor }) => {
           const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           const tH = isMajor ? 22 : 12
-          ctx.strokeStyle = '#3C2415'
+          ctx.strokeStyle = rulerColor
           ctx.lineWidth = isMajor ? 3 : 2
           ctx.beginPath()
           ctx.moveTo(x, rulerY - tH / 2)
@@ -193,7 +199,7 @@ export class Renderer {
 
         ;[state.zoomMin, state.zoomMax].forEach((value) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-          ctx.strokeStyle = '#3C2415'
+          ctx.strokeStyle = rulerColor
           ctx.lineWidth = 5
           ctx.beginPath()
           ctx.moveTo(x, rulerY - 30)
@@ -222,8 +228,10 @@ export class Renderer {
     if (state.showShip) {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       // ズームして見えている幅が狭いほど「船に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
-      // 全体(1000)なら1倍・部屋ズームで最大4倍まで（度が過ぎると船が画面からはみ出すため上限あり）。
-      const camScale = Math.min(4, Math.sqrt((CFG.RULER.MAX - CFG.RULER.MIN) / (state.zoomMax - state.zoomMin)))
+      // 全体(1000)なら1倍。でんせつは100窓→10窓と2段ズームがあるため、1段目は控えめにとどめ、
+      // 最深部（10窓）でも数直線の目盛りに被らず「触れる」程度で頭打ちにする（2026-07-05実機FB）。
+      const spanRatio = (CFG.RULER.MAX - CFG.RULER.MIN) / (state.zoomMax - state.zoomMin)
+      const camScale = Math.min(2.3, 1 + (Math.sqrt(spanRatio) - 1) * 0.45)
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale * camScale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale * camScale
       // 海の構図：船底が水平線（canvas上約55%）に乗るよう配置。
@@ -455,17 +463,37 @@ export class Renderer {
 
       // 数直線の端の数字（0・1000等）は枠より上に描く。
       // 枠の下だと右端の「1000」が金具に隠れて「100」に読めてしまう（2026-07-05実機FB）。
-      ;[state.zoomMin, state.zoomMax].forEach((value) => {
-        const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+      // ズーム遷移中は補間した半端な数値（例:127.4）をそのまま出すと「ランダムな数字」に見えてしまうため、
+      // 旧の値（例:0）→新の値（例:300）をクロスフェードで見せる（両者とも位置は同じ端＝rsx/rex）。
+      const drawEdgeLabel = (edgeValue, text, alpha) => {
+        if (alpha <= 0) return
+        const x = valueToX(edgeValue, state.zoomMin, state.zoomMax, rsx, rex)
         ctx.font = 'bold 26px sans-serif'
         ctx.textAlign = 'center'
-        const hw = ctx.measureText(String(value)).width / 2
+        const hw = ctx.measureText(text).width / 2
         const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
+        ctx.save()
+        ctx.globalAlpha = alpha
         ctx.lineWidth = 6
         ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.strokeText(String(value), lx, rulerY - 18)
+        ctx.strokeText(text, lx, rulerY - 18)
         ctx.fillStyle = '#111'
-        ctx.fillText(String(value), lx, rulerY - 18)
+        ctx.fillText(text, lx, rulerY - 18)
+        ctx.restore()
+      }
+      const fading = state.zoomAnimT != null
+      ;[
+        { value: state.zoomMin, from: state.zoomAnimFromMin, to: state.zoomAnimToMin },
+        { value: state.zoomMax, from: state.zoomAnimFromMax, to: state.zoomAnimToMax },
+      ].forEach(({ value, from, to }) => {
+        if (fading) {
+          // 表示位置は補間中の value（=state.zoomMin/Max）で計算しつつ、文字は確定した整数のfrom/toだけを使う。
+          // 補間中の半端な小数（例:222.42…）をそのまま文字にすると「ランダムな数字」に見えてしまうため。
+          drawEdgeLabel(value, String(from), 1 - state.zoomAnimT)
+          drawEdgeLabel(value, String(to), state.zoomAnimT)
+        } else {
+          drawEdgeLabel(value, String(value), 1)
+        }
       })
     }
 
