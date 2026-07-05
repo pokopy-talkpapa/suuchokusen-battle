@@ -189,6 +189,11 @@ class Game {
     const zoomAnimFromMax = zoomDisp ? zoomDisp.fromMax : null
     const zoomAnimToMin   = zoomDisp ? this._zoomMin : null
     const zoomAnimToMax   = zoomDisp ? this._zoomMax : null
+    // 強調表示フェーズ中のみ非null。「ズーム前の見た目の中で、これから拡大する区間」を光らせるための値。
+    const zoomHighlight    = zoomDisp ? zoomDisp.highlight : null
+    const zoomHighlightMin = zoomHighlight ? zoomHighlight.min : null
+    const zoomHighlightMax = zoomHighlight ? zoomHighlight.max : null
+    const zoomHighlightP   = zoomHighlight ? zoomHighlight.p : null
     const enemyX = valueToX(this._targetValue, vMin, vMax, rsx, rex)
 
     const panelGeom = this._panelGeom()
@@ -262,21 +267,36 @@ class Game {
       zoomAnimFromMax: zoomAnimFromMax,
       zoomAnimToMin:   zoomAnimToMin,
       zoomAnimToMax:   zoomAnimToMax,
+      zoomHighlightMin: zoomHighlightMin,
+      zoomHighlightMax: zoomHighlightMax,
+      zoomHighlightP:   zoomHighlightP,
     }
   }
 
   // ズーム中の表示範囲を計算（easeOutCubicで補間）。完了したら _zoomAnim を消して以後は目標値をそのまま返す。
   // t・fromMin/fromMax も返す＝端の数字を「補間した半端な数値」でなく旧→新のクロスフェードで見せるため。
+  // ズームインは「強調表示フェーズ→拡大フェーズ」の2段構成。強調表示中は数直線を動かさず、
+  // タップした区間（toMin〜toMax）をズーム前の見た目（fromMin〜fromMax）の中で点滅させるだけにする
+  // （例：0〜1000のうち800〜900だけが光る＝「ここが今から大きくなる」を先に見せてから広げる。2026-07-05実機FB）。
   _displayedZoom() {
-    if (!this._zoomAnim) return { min: this._zoomMin, max: this._zoomMax, t: null, fromMin: null, fromMax: null }
-    const t = Math.min(1, (performance.now() - this._zoomAnim.start) / this._zoomAnim.duration)
+    if (!this._zoomAnim) {
+      return { min: this._zoomMin, max: this._zoomMax, t: null, fromMin: null, fromMax: null, highlight: null }
+    }
+    const a = this._zoomAnim
+    const elapsed = performance.now() - a.start
+    if (elapsed < a.highlightDuration) {
+      const p = elapsed / a.highlightDuration
+      return {
+        min: a.fromMin, max: a.fromMax, t: 0, fromMin: a.fromMin, fromMax: a.fromMax,
+        highlight: { min: a.toMin, max: a.toMax, p },
+      }
+    }
+    const t = Math.min(1, (elapsed - a.highlightDuration) / a.zoomDuration)
     const e = easeOutCubic(t)
-    const min = lerp(this._zoomAnim.fromMin, this._zoomAnim.toMin, e)
-    const max = lerp(this._zoomAnim.fromMax, this._zoomAnim.toMax, e)
-    const fromMin = this._zoomAnim.fromMin
-    const fromMax = this._zoomAnim.fromMax
+    const min = lerp(a.fromMin, a.toMin, e)
+    const max = lerp(a.fromMax, a.toMax, e)
     if (t >= 1) this._zoomAnim = null
-    return { min, max, t, fromMin, fromMax }
+    return { min, max, t, fromMin: a.fromMin, fromMax: a.fromMax, highlight: null }
   }
 
   // ズームアニメ中の目盛り間隔＝いま見えている幅から動的に決める（1000幅に1目盛りだと目盛りが多すぎるため）
@@ -287,9 +307,16 @@ class Game {
   }
 
   // 部屋タップの結果（目標のズーム範囲）へ補間アニメーションを開始する。ズームイン/アウト共通。
+  // ズームインだけ強調表示フェーズを挟む（ズームアウトは対象がすでに全画面なので強調の意味が薄い）。
   _animateZoomTo(min, max, tick) {
     const disp = this._displayedZoom()
-    this._zoomAnim = { fromMin: disp.min, fromMax: disp.max, toMin: min, toMax: max, start: performance.now(), duration: 400 }
+    const isZoomIn = (max - min) < (disp.max - disp.min)
+    this._zoomAnim = {
+      fromMin: disp.min, fromMax: disp.max, toMin: min, toMax: max,
+      start: performance.now(),
+      highlightDuration: isZoomIn ? 500 : 0,
+      zoomDuration: 400,
+    }
     this._zoomMin  = min
     this._zoomMax  = max
     this._tickStep = tick

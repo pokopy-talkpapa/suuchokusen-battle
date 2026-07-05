@@ -171,14 +171,8 @@ export class Renderer {
     // ＝ズームした実感が出ない原因になっていたため MEASURE 専用の分岐は廃止（2026-07-05）。
     if (state.phase !== 'AIM') {
       const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
-      // ズーム遷移中は数直線全体を金色にパルスさせ「今ここがタップされて広がっている」ことを強調する。
-      // 0→1→0（サイン波）で1回だけ光らせる＝タップした区間の強調表示（点滅）の代わり。
-      const flash = state.zoomAnimT != null ? Math.sin(Math.min(1, state.zoomAnimT) * Math.PI) : 0
-      const rulerColor = flash > 0
-        ? `rgb(${Math.round(60 + flash * 195)}, ${Math.round(36 + flash * 140)}, ${Math.round(21 - flash * 21)})`
-        : '#3C2415'
 
-        ctx.strokeStyle = rulerColor
+        ctx.strokeStyle = '#3C2415'
         ctx.lineWidth = 4
         ctx.beginPath()
         ctx.moveTo(rsx, rulerY)
@@ -189,7 +183,7 @@ export class Renderer {
         ticks.forEach(({ value, isMajor }) => {
           const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           const tH = isMajor ? 22 : 12
-          ctx.strokeStyle = rulerColor
+          ctx.strokeStyle = '#3C2415'
           ctx.lineWidth = isMajor ? 3 : 2
           ctx.beginPath()
           ctx.moveTo(x, rulerY - tH / 2)
@@ -199,13 +193,32 @@ export class Renderer {
 
         ;[state.zoomMin, state.zoomMax].forEach((value) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-          ctx.strokeStyle = rulerColor
+          ctx.strokeStyle = '#3C2415'
           ctx.lineWidth = 5
           ctx.beginPath()
           ctx.moveTo(x, rulerY - 30)
           ctx.lineTo(x, rulerY + 30)
           ctx.stroke()
         })
+
+        // ズームイン前の強調表示フェーズ：今の見た目（zoomMin〜zoomMax＝まだ拡大前の範囲）の中で、
+        // これからタップで拡大される区間（zoomHighlightMin〜Max）だけを点滅させる。
+        // 例：0〜1000のうち800〜900だけが光る＝「ここが今から大きくなる」を数直線を動かす前に見せる。
+        if (state.zoomHighlightMin != null) {
+          const hx1 = valueToX(state.zoomHighlightMin, state.zoomMin, state.zoomMax, rsx, rex)
+          const hx2 = valueToX(state.zoomHighlightMax, state.zoomMin, state.zoomMax, rsx, rex)
+          const alpha = 0.6 * Math.abs(Math.sin(state.zoomHighlightP * Math.PI * 2))
+          if (alpha > 0.01) {
+            ctx.save()
+            ctx.fillStyle = `rgba(255, 200, 30, ${alpha})`
+            ctx.fillRect(hx1, rulerY - 34, Math.max(2, hx2 - hx1), 68)
+            ctx.strokeStyle = `rgba(255, 160, 0, ${Math.min(1, alpha + 0.2)})`
+            ctx.lineWidth = 3
+            ctx.strokeRect(hx1, rulerY - 34, Math.max(2, hx2 - hx1), 68)
+            ctx.restore()
+          }
+        }
+
         // 端の数字はMEASUREだけ後段（双眼鏡の枠の上）で描く。他フェーズはここで描く。
         if (state.phase !== 'MEASURE') {
           ;[state.zoomMin, state.zoomMax].forEach((value) => {
@@ -228,10 +241,11 @@ export class Renderer {
     if (state.showShip) {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
       // ズームして見えている幅が狭いほど「船に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
-      // 全体(1000)なら1倍。でんせつは100窓→10窓と2段ズームがあるため、1段目は控えめにとどめ、
-      // 最深部（10窓）でも数直線の目盛りに被らず「触れる」程度で頭打ちにする（2026-07-05実機FB）。
+      // 全体(1000)=1倍・100窓(いっちょまえ/でんせつ1段目)=1.35倍・10窓(でんせつ2段目)=1.7倍、を
+      // 対数スケールで滑らかに繋ぐ。1段目でもう大きすぎると2段目の伸びしろが無くなるため控えめに（2026-07-05実機FB）。
       const spanRatio = (CFG.RULER.MAX - CFG.RULER.MIN) / (state.zoomMax - state.zoomMin)
-      const camScale = Math.min(2.3, 1 + (Math.sqrt(spanRatio) - 1) * 0.45)
+      const zoomLevel = Math.log10(Math.max(1, spanRatio)) // 全体=0・100窓=1・10窓=2
+      const camScale = Math.min(1.7, 1 + zoomLevel * 0.35)
       const shipW = CFG.ENEMY.SHIP_WIDTH  * scale * camScale
       const shipH = CFG.ENEMY.SHIP_HEIGHT * scale * camScale
       // 海の構図：船底が水平線（canvas上約55%）に乗るよう配置。
