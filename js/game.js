@@ -256,6 +256,8 @@ class Game {
       timerRemaining:  this._timerRemaining,
       // FIRE/RESULT はタップを受けるリスナーが無い（自動で次へ進む）ので、押せないボタンは描かない
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
+      // ズームしている最中だけ表示。どこをタップすれば戻れるか一目でわかるように専用ボタンを出す。
+      zoomOutButtonRect: (this._phase === 'MEASURE' && this._canZoomOut()) ? this._zoomOutButtonRect() : null,
       resetButton:     this._phase === 'TITLE'
                          ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
       // おぼえてうつ（じかん制限で記憶して撃つ）は「よんでうつ」ででんせつランクに到達してから解放。
@@ -405,42 +407,60 @@ class Game {
   }
 
   // 測量中のタップ：
-  // ①窓のある段階＝数直線の近くをタップ→その「部屋」へズーム／もう一度で全体に戻る（A案）
-  // ②上級は数直線から離れた場所（そら）をタップ→射撃へ（初級はテンキーのOKで進む）
+  // ①窓のある段階＝数直線の近くをタップ→その「部屋」へズーム（ズームインのみ）
+  // ②専用「もどす」ボタン→ズームを1段階だけ手前に戻す（ズームインとジェスチャーを分けて戻り方を明確にする）
+  // ③上級は数直線から離れた場所（そら）をタップ→射撃へ（初級はテンキーのOKで進む）
   _handleMeasureTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
     const p = this._eventXY(e)
     if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._audio.play('tap'); this._goToTitle(); return }
+    if (this._canZoomOut() && isTapOnRect(this._pressPoint, p, this._zoomOutButtonRect())) {
+      this._audio.play('tap'); this._zoomOutOneLevel(); return
+    }
     if (this._measureSpan && this._handleMeasureZoomTap(p)) return
     if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
     this._audio.play('tap')
     this._advanceFromMeasure()
   }
 
-  // 数直線の帯（上下120px）へのタップだけズーム扱い。処理したら true。
-  // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥でもう一度タップ→
-  // 1段階だけ手前に戻る（でんせつなら10の部屋→100の部屋、100の部屋→全体）＝一気に全体へは戻さない。
-  // 10の部屋を全体からいきなりタップで当てるのは無理なので、必ず100の部屋を経由する。
+  // ズームを1段階だけ手前に戻せる状態か（＝ズームしている最中かどうか）
+  _canZoomOut() {
+    return this._measureSpan != null && (this._zoomMax - this._zoomMin) < (CONFIG.RULER.MAX - CONFIG.RULER.MIN)
+  }
+
+  // 「もどす」ボタンの矩形（測量ヒントの下・中央）
+  _zoomOutButtonRect() {
+    const cv = this._canvas
+    return { x: Math.round(cv.width / 2 - 100), y: 54, w: 200, h: 40 }
+  }
+
+  // 段階ズームをひとつ手前へ戻す（10の部屋→100の部屋、100の部屋→全体）。
+  // 専用ボタンから呼ぶ＝数直線タップ(ズームイン専用)とはジェスチャーを分ける。
+  // 混ぜてしまうと「奥→1段戻す→また奥」の行き来しかできず全体表示に戻れなくなるため(2026-07-06に発覚)。
+  _zoomOutOneLevel() {
+    const width = this._zoomMax - this._zoomMin
+    if (width < 100) {
+      // 10の部屋→100の部屋へ（今いた場所を含む100の部屋を復元）
+      const backSpan = 100
+      const min = Math.floor(this._zoomMin / backSpan) * backSpan
+      this._animateZoomTo(min, min + backSpan, 10)
+    } else {
+      // 100の部屋→全体へ
+      this._animateZoomTo(CONFIG.RULER.MIN, CONFIG.RULER.MAX, 100)
+    }
+  }
+
+  // 数直線の帯（上下120px）へのタップだけズーム扱い。処理したら true。ズームインのみ行う。
+  // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥まで来ていたら何もしない
+  // （戻るのは専用の「もどす」ボタンの役目）。
   _handleMeasureZoomTap(p) {
     const cv = this._canvas
     const rulerY = Math.round(cv.height * 0.35) // 海の構図の数直線Y（renderer と同じ式）
     if (Math.abs(p.y - rulerY) > 120) return false
     this._audio.play('tap')
     const width = this._zoomMax - this._zoomMin
-    if (width <= this._measureSpan) {
-      // いちばん奥まで来ている＝タップで1段階だけ手前に戻す（部屋を選び直せる）＝ズームアウト
-      if (width < 100) {
-        // 10の部屋→100の部屋へ（今いた場所を含む100の部屋を復元）
-        const backSpan = 100
-        const min = Math.floor(this._zoomMin / backSpan) * backSpan
-        this._animateZoomTo(min, min + backSpan, 10)
-      } else {
-        // 100の部屋→全体へ（これより手前の中間段階はない）
-        this._animateZoomTo(CONFIG.RULER.MIN, CONFIG.RULER.MAX, 100)
-      }
-      return true
-    }
+    if (width <= this._measureSpan) return true // いちばん奥＝これ以上は入れない
     const rsx = Math.round(cv.width * 0.155)
     const rex = Math.round(cv.width * 0.88)
     const x = Math.max(rsx, Math.min(rex, p.x))

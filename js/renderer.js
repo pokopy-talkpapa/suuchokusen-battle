@@ -530,6 +530,20 @@ export class Renderer {
       ctx.fillText(state.measureHint, cv.width / 2, 40)
     }
 
+    // ズームを1段階戻すボタン（測量中・ズームしている時だけ／ヒントの下）：どこをタップすれば戻れるか明示する
+    if (state.zoomOutButtonRect) {
+      const b = state.zoomOutButtonRect
+      ctx.save()
+      ctx.fillStyle = '#2e8b57'
+      roundRectPath(ctx, b.x, b.y, b.w, b.h, 10)
+      ctx.fill()
+      ctx.font = 'bold 18px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText('◀ ひとつ もどす', b.x + b.w / 2, b.y + 26)
+      ctx.restore()
+    }
+
     // ランクと連続命中メーター（右上・測量中）：上達の道を見える化
     if (state.phase === 'MEASURE' && state.rank) {
       const r = state.rank
