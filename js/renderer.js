@@ -152,33 +152,25 @@ export class Renderer {
       return
     }
 
-    // 島（海の構図・左端）：大砲の高さが rulerY に来るよう位置合わせ
+    // 島（海の構図・左端）：大砲の高さが rulerY に来るよう位置合わせ。
+    // 島は数直線の「0」の位置に固定されたモノとして扱い、ズームで0が画面外へ流れたら島も一緒に流れて消える
+    // （双眼鏡で寄ると自分の足元＝島が視界から切れていく感覚を出すため。全体表示時は元の見た目と一致する）。
     if (seaView && this._imgs['island-cutout']) {
       const img = this._imgs['island-cutout']
       const iW  = cv.width * 0.16                          // 画面幅の16%
       const iH  = iW * (img.height / img.width)            // アスペクト比維持
-      const iX  = -iW * 0.05                               // 少し左にはみ出す
+      const zeroX = valueToX(CFG.RULER.MIN, state.zoomMin, state.zoomMax, rsx, rex)
+      const iX  = zeroX - rsx - iW * 0.05                  // 全体表示時は従来どおり -iW*0.05 に一致
       const iY  = rulerY - iH * 0.38                       // 大砲が rulerY に来るよう上にオフセット
       ctx.drawImage(img, iX, iY, iW, iH)
     }
 
     // 数直線。AIM は手元パネルが別の数直線を持つので主数直線は描かない。
-    // MEASURE は授業用PNG（数字なし）を multiply 合成で重ねる。それ以外は Canvas 描画。
+    // MEASURE も含め全フェーズ共通で Canvas 動的描画にする（ズーム中の目盛りの伸び縮みをそのまま見せるため）。
+    // 静止画（ruler-img）は「今の窓（zoomMin〜zoomMax）」を反映できず、部屋ズームしても絵が変わらない
+    // ＝ズームした実感が出ない原因になっていたため MEASURE 専用の分岐は廃止（2026-07-05）。
     if (state.phase !== 'AIM') {
-      if (state.phase === 'MEASURE' && this._imgs['ruler-img']) {
-        // ruler-img は黒線+透明背景。左右6.3%が透明余白→ソースクリップで除去し線をrsx〜rexに合わせる
-        const img = this._imgs['ruler-img']
-        const pad = img.width * 0.063              // 6.3% 余白
-        const srcX = pad, srcW = img.width - pad * 2
-        const rw = rex - rsx
-        const rh = rw * (img.height / img.width) * 0.5
-        ctx.save()
-        ctx.drawImage(img, srcX, 0, srcW, img.height, rsx, rulerY - rh / 2, rw, rh)
-        ctx.restore()
-        // 端の数字（0・1000等）はここで描かない：双眼鏡の枠より後（上）に描く。
-        // ここで描くと右端の「1000」が枠の金具に隠れて「100」に読めてしまう。
-      } else {
-        const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
+      const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
         ctx.strokeStyle = '#3C2415'
         ctx.lineWidth = 4
@@ -224,14 +216,16 @@ export class Renderer {
             ctx.fillText(String(value), lx, rulerY - 36)
           })
         }
-      }
     }
 
     // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
     if (state.showShip) {
       const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
-      const shipW = CFG.ENEMY.SHIP_WIDTH  * scale
-      const shipH = CFG.ENEMY.SHIP_HEIGHT * scale
+      // ズームして見えている幅が狭いほど「船に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
+      // 全体(1000)なら1倍・部屋ズームで最大4倍まで（度が過ぎると船が画面からはみ出すため上限あり）。
+      const camScale = Math.min(4, Math.sqrt((CFG.RULER.MAX - CFG.RULER.MIN) / (state.zoomMax - state.zoomMin)))
+      const shipW = CFG.ENEMY.SHIP_WIDTH  * scale * camScale
+      const shipH = CFG.ENEMY.SHIP_HEIGHT * scale * camScale
       // 海の構図：船底が水平線（canvas上約55%）に乗るよう配置。
       // 水平線Y = imgHorizon(53%) / crop(0.96) → 55.2% ≈ 0.552H
       const centerY = seaView
