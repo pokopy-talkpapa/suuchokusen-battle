@@ -71,6 +71,15 @@
       display: none;
     }
     #display-input.visible { display: block; }
+    #display-input.wrong {
+      border-color: #ff4444;
+      animation: display-shake 0.35s ease;
+    }
+    @keyframes display-shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
     #rotate-overlay {
       position: absolute;
       inset: 0;

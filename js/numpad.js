@@ -50,6 +50,12 @@ export class Numpad {
     this._render()
   }
 
+  // 読み間違い（正解と違う数字を書いてしまった）の視覚フィードバック。文字は出さず色と揺れだけで伝える。
+  flashWrong() {
+    this._display.classList.add('wrong')
+    setTimeout(() => this._display.classList.remove('wrong'), 350)
+  }
+
   getValue() {
     return this._value
   }

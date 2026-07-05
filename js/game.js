@@ -12,6 +12,9 @@ import { currentStage, stageIndexFromMaxLevel, rankInfo } from './stage.js'
 import { calcShotScore, ScoreState } from './score.js'
 import { AudioManager } from './audio.js'
 
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
+function lerp(a, b, t) { return a + (b - a) * t }
+
 class Game {
   constructor() {
     this._canvas   = document.getElementById('game-canvas')
@@ -30,6 +33,7 @@ class Game {
     this._zoomMin         = 0
     this._zoomMax         = 1000
     this._tickStep        = 100
+    this._zoomAnim        = null // 部屋タップのズームイン/アウトを補間表示するための状態
     this._targetValue     = 0
     this._measureSpan     = null
     this._measuredValue   = null
@@ -105,13 +109,35 @@ class Game {
       return
     }
     this._resetConfirm = false
-    this._mode = p.x > this._canvas.width / 2 ? 'expert' : 'beginner'
+    const mb = this._modeButtonRects()
+    const mode = isTapOnRect(this._pressPoint, p, mb.beginner) ? 'beginner'
+               : (isTapOnRect(this._pressPoint, p, mb.expert) && this._isExpertUnlocked()) ? 'expert'
+               : null
+    if (!mode) return // ボタン以外・未解放ボタンへのタップは無視（誤反応防止）
+    this._mode = mode
     this._audio.play('tap')
     this._removeTitleListeners()
     this._startMeasure()
   }
 
   _resetButtonRect() { return { x: 14, y: this._canvas.height - 58, w: 210, h: 44 } }
+
+  // おぼえてうつ解放条件＝でんせつランク（maxLevel 3）に到達済み（2026-07-05 ぽこぴぃ確定）
+  _isExpertUnlocked() { return this._unlock.maxLevel >= 3 }
+
+  // モード選択の2ボタン矩形（renderer の drawBtn と同じ式・単一の真実にするため共有計算）
+  _modeButtonRects() {
+    const cv = this._canvas
+    const bw = Math.min(280, cv.width * 0.38)
+    const bh = 124
+    const by = cv.height * 0.55 - bh / 2
+    const cx1 = cv.width * 0.27
+    const cx2 = cv.width * 0.73
+    return {
+      beginner: { x: cx1 - bw / 2, y: by, w: bw, h: bh },
+      expert:   { x: cx2 - bw / 2, y: by, w: bw, h: bh },
+    }
+  }
 
   // 音ON/OFFボタン（右下・TITLEとMEASUREに表示）。矩形は renderer と共有＝単一の真実。
   _soundButtonRects() {
@@ -149,9 +175,12 @@ class Game {
     // FIRE/RESULT は「答え合わせ」＝全体スケール（0〜1000）で見せる。
     // 測量窓のままだと着弾X（全体スケール）と目盛りが食い違い、正しく撃っても見た目がズレる。
     const fullView = this._phase === 'FIRE' || this._phase === 'RESULT'
-    const vMin  = fullView ? CONFIG.RULER.MIN : this._zoomMin
-    const vMax  = fullView ? CONFIG.RULER.MAX : this._zoomMax
-    const vTick = fullView ? 100 : this._tickStep
+    // ズーム中（部屋タップ直後）は表示範囲を補間して「寄っていく/引いていく」感じを出す。
+    // ロジック側（部屋の判定・ヒント）は this._zoomMin/_zoomMax（目標値）をそのまま使う。
+    const zoomDisp = (!fullView && this._zoomAnim) ? this._displayedZoom() : null
+    const vMin  = fullView ? CONFIG.RULER.MIN : (zoomDisp ? zoomDisp.min : this._zoomMin)
+    const vMax  = fullView ? CONFIG.RULER.MAX : (zoomDisp ? zoomDisp.max : this._zoomMax)
+    const vTick = fullView ? 100 : (zoomDisp ? this._tickStepForSpan(vMax - vMin) : this._tickStep)
     const enemyX = valueToX(this._targetValue, vMin, vMax, rsx, rex)
 
     const panelGeom = this._panelGeom()
@@ -211,12 +240,42 @@ class Game {
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
       resetButton:     this._phase === 'TITLE'
                          ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
+      // おぼえてうつ（じかん制限で記憶して撃つ）は「よんでうつ」ででんせつランクに到達してから解放。
+      // 読まずに記憶頼みで進めるのを防ぐため、まず読む力を一定水準まで育ててから開放する順にする。
+      expertLocked:    !this._isExpertUnlocked(),
       // 音ボタンはTITLEのみ（MEASUREは右下にテンキーDOMが重なる）。プレイ中の消音は「もどる」経由。
       soundButtons:    this._phase === 'TITLE'
                          ? { rects: this._soundButtonRects(),
                              sfxOn: this._audio.sfxOn, bgmOn: this._audio.bgmOn } : null,
       rulerGeom:       { rsx, rex },
     }
+  }
+
+  // ズーム中の表示範囲を計算（easeOutCubicで補間）。完了したら _zoomAnim を消して以後は目標値をそのまま返す。
+  _displayedZoom() {
+    if (!this._zoomAnim) return { min: this._zoomMin, max: this._zoomMax }
+    const t = Math.min(1, (performance.now() - this._zoomAnim.start) / this._zoomAnim.duration)
+    const e = easeOutCubic(t)
+    const min = lerp(this._zoomAnim.fromMin, this._zoomAnim.toMin, e)
+    const max = lerp(this._zoomAnim.fromMax, this._zoomAnim.toMax, e)
+    if (t >= 1) this._zoomAnim = null
+    return { min, max }
+  }
+
+  // ズームアニメ中の目盛り間隔＝いま見えている幅から動的に決める（1000幅に1目盛りだと目盛りが多すぎるため）
+  _tickStepForSpan(span) {
+    if (span > 100.5) return 100
+    if (span > 10.5)  return 10
+    return 1
+  }
+
+  // 部屋タップの結果（目標のズーム範囲）へ補間アニメーションを開始する。ズームイン/アウト共通。
+  _animateZoomTo(min, max, tick) {
+    const disp = this._displayedZoom()
+    this._zoomAnim = { fromMin: disp.min, fromMax: disp.max, toMin: min, toMax: max, start: performance.now(), duration: 400 }
+    this._zoomMin  = min
+    this._zoomMax  = max
+    this._tickStep = tick
   }
 
   // 照準パネルの数直線ジオメトリ（renderer と AimInput で共有）
@@ -249,6 +308,7 @@ class Game {
     this._targetValue = generateTargetInsideWindow(
       CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep, windowSpan)
     this._measureSpan = windowSpan
+    this._zoomAnim    = null // 前ラウンドのズームアニメが残っていたら消す
     if (windowSpan) {
       // 窓のある段階は全体0〜1000から始める。船のあたりをタップ→その「部屋」へズーム（A案・2026-07-05）。
       // 自動で船の周りを枠取りすると「全体のどのへんか」を考える工程が丸ごと飛ぶため。
@@ -318,25 +378,21 @@ class Game {
     this._audio.play('tap')
     const width = this._zoomMax - this._zoomMin
     if (width <= this._measureSpan) {
-      // いちばん奥まで来ている＝タップで全体に戻す（部屋を選び直せる）
-      this._zoomMin  = CONFIG.RULER.MIN
-      this._zoomMax  = CONFIG.RULER.MAX
-      this._tickStep = 100
+      // いちばん奥まで来ている＝タップで全体に戻す（部屋を選び直せる）＝ズームアウト
+      this._animateZoomTo(CONFIG.RULER.MIN, CONFIG.RULER.MAX, 100)
       return true
     }
     const rsx = Math.round(cv.width * 0.155)
     const rex = Math.round(cv.width * 0.88)
     const x = Math.max(rsx, Math.min(rex, p.x))
     const v = xToValue(x, this._zoomMin, this._zoomMax, rsx, rex)
-    // 1段深い部屋へ（段階の窓幅より深くは行かない）
+    // 1段深い部屋へ（段階の窓幅より深くは行かない）＝ズームイン
     const span = Math.max(width > 100 ? 100 : 10, this._measureSpan)
     let min = Math.floor(v / span) * span
     let max = min + span
     if (max > CONFIG.RULER.MAX) { max = CONFIG.RULER.MAX; min = max - span }
     if (min < CONFIG.RULER.MIN) { min = CONFIG.RULER.MIN; max = min + span }
-    this._zoomMin  = min
-    this._zoomMax  = max
-    this._tickStep = span === 100 ? 10 : 1
+    this._animateZoomTo(min, max, span === 100 ? 10 : 1)
     return true
   }
 
@@ -352,6 +408,14 @@ class Game {
 
   _submitMeasure(val) {
     if (this._phase !== 'MEASURE') return
+    // 読まずに適当な数字を打っても通ってしまわないよう、実際にその位置にある正解と一致しない限り先へ進めない。
+    // ズームで見えている範囲は必ず正解がぴったり目盛りに乗る深さなので、正しく読めていれば必ず一致するはず。
+    if (val !== this._targetValue) {
+      this._audio.play('miss')
+      this._numpad.reset()
+      this._numpad.flashWrong()
+      return
+    }
     clearInterval(this._timerInterval)
     this._canvas.removeEventListener('click',    this._handleMeasureTap)
     this._canvas.removeEventListener('touchend', this._handleMeasureTap)
