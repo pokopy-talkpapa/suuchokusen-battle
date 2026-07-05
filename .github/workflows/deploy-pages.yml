@@ -1,0 +1,40 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write   # 失敗時にこのジョブ自身を再実行させるために必要
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # GitHub Pages側の一時的な混雑（"Deployment failed, try again later"）で
+      # 失敗した場合、自分自身を自動で再実行する。run_attempt上限で無限ループを防止。
+      - name: Retry this job on deployment failure
+        if: failure() && fromJSON(github.run_attempt) < 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run rerun ${{ github.run_id }} --failed
