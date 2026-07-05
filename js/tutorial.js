@@ -7,14 +7,21 @@ const SEEN_KEY = 'suuchokusen_tutorial_seen_v1'
 
 export class Tutorial {
   constructor() {
-    this._overlay  = document.getElementById('tutorial-overlay')
-    this._openBtn  = document.getElementById('tutorial-open-btn')
-    this._startBtn = document.getElementById('tutorial-start')
-    this._onClose  = null
+    this._overlay    = document.getElementById('tutorial-overlay')
+    this._openBtn    = document.getElementById('tutorial-open-btn')
+    this._startBtn   = document.getElementById('tutorial-start')
+    this._endOverlay = document.getElementById('tutorial-end-overlay')
+    this._endBtn     = document.getElementById('tutorial-end-close')
+    this._onClose    = null
+    this._onEndClose = null
     this._guideRequested = false // 「あそびかた」ボタンで見返す時、次のプレイをもう一度ガイドする
 
     this._startBtn.addEventListener('click', () => this._close())
     this._openBtn.addEventListener('click', () => { this._guideRequested = true; this.show() })
+    this._endBtn.addEventListener('click', () => {
+      this._endOverlay.classList.remove('visible')
+      if (this._onEndClose) this._onEndClose()
+    })
   }
 
   hasSeen() {
@@ -34,6 +41,13 @@ export class Tutorial {
   isOpen() { return this._overlay.classList.contains('visible') }
 
   onClose(cb) { this._onClose = cb }
+  onEndClose(cb) { this._onEndClose = cb }
+
+  // 卒業カード：チュートリアル終了＋この先の楽しみ（ズーム解放・おぼえてうつ）の予告
+  showEnd() {
+    this.markSeen()
+    this._endOverlay.classList.add('visible')
+  }
 
   // タイトル画面にいる間だけ「あそびかた」ボタンを出す
   setOpenButtonVisible(visible) {

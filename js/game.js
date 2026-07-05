@@ -28,6 +28,8 @@ class Game {
     this._numpad.onPress(() => this._audio.play('tap'))
     this._tutorial = new Tutorial()
     this._tutorial.onClose(() => this._audio.play('tap'))
+    // 卒業カードを閉じたらタイトルへ＝チュートリアル回は仕切り直して本番を最初から
+    this._tutorial.onEndClose(() => { this._audio.play('tap'); this._goToTitle() })
 
     this._mode            = 'beginner'
     this._phase           = 'TITLE'
@@ -61,6 +63,9 @@ class Game {
     // 初回プレイの操作ガイド（実画面で「今ここを押す」を吹き出しで誘導）。
     // null=ガイドなし / 'measure'(めもりを読んで入力) / 'aim'(針を合わせる) / 'fire'(うつ！)
     this._guide           = null
+    // ガイド付きで始めたラウンドか。この1発は練習＝ランク・スコアに記録しない。
+    // 着弾を見せたら卒業カード（ズーム解放とおぼえてうつの予告）→タイトルへ戻して仕切り直す。
+    this._guideRound      = false
   }
 
   // イベントからキャンバス座標を得る（touchstart/touchend/mouse すべて対応）
@@ -352,7 +357,7 @@ class Game {
       const rex = Math.round(cv.width * 0.88)
       const x = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
       return { x, y: rulerY, ring: null,
-               text: 'ふねの したの めもりを よんで すうじを おそう！' }
+               text: 'ふねの うえの めもりを よんで すうじを おそう！' }
     }
     if (this._phase === 'AIM') {
       const a = this._aimInput.getState()
@@ -433,6 +438,7 @@ class Game {
     // 初回プレイ（またはあそびかたボタンで再要求）の操作ガイドを開始。
     // ガイドは初級（テンキーあり）の流れ専用。初回は必ず初級＆みならいなのでこれで足りる。
     this._guide = (this._tutorial.shouldGuide() && CONFIG.MODES[this._mode].showNumpad) ? 'measure' : null
+    this._guideRound = this._guide != null
     this._numpad.setHighlight(this._guide === 'measure')
 
     // 「読んで覚えたら そらをタップで射撃へ」（上級／初級は数字入力で進む）
@@ -607,6 +613,7 @@ class Game {
     this._numpad.hide()
     this._numpad.setHighlight(false)
     this._guide = null // 途中でやめたら次のプレイでまた最初からガイドする（markSeenしない）
+    this._guideRound = false
     this._phase = 'TITLE'
     this._resetConfirm = false
     this._addTitleListeners()
@@ -658,6 +665,21 @@ class Game {
     this._phase = 'RESULT'
     const isHit = judgeHit(this._landingValue, this._targetValue, this._stage.hitMargin)
     this._hitResult = isHit ? 'HIT' : 'MISS'
+
+    // チュートリアル回は練習＝ランクにもスコアにも記録しない。
+    // 着弾だけ見せて卒業カード（ここからは自分の力で）→タイトルへ仕切り直し。
+    if (this._guideRound) {
+      this._lastShotScore = calcShotScore(this._landingValue, this._targetValue, this._stage.hitMargin, CONFIG.SCORE)
+      this._audio.play(isHit ? 'hit' : 'miss')
+      this._fireStart   = null
+      this._resultStart = performance.now()
+      this._resultDur   = this._resultDuration
+      setTimeout(() => {
+        this._guideRound = false
+        this._tutorial.showEnd()
+      }, this._resultDur)
+      return
+    }
 
     // ランクアップ判定（recordHit 前後の maxLevel 比較）
     const prevMax = this._unlock.maxLevel

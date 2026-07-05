@@ -119,7 +119,7 @@
       display: none;
     }
     #tutorial-open-btn.visible { display: block; }
-    #tutorial-overlay {
+    #tutorial-overlay, #tutorial-end-overlay {
       position: absolute;
       inset: 0;
       z-index: 50;
@@ -129,7 +129,7 @@
       justify-content: center;
       touch-action: none;
     }
-    #tutorial-overlay.visible { display: flex; }
+    #tutorial-overlay.visible, #tutorial-end-overlay.visible { display: flex; }
     .tutorial-card {
       width: min(560px, 88vw);
       max-height: 84vh;
@@ -148,7 +148,7 @@
       justify-content: center;
       margin-top: 18px;
     }
-    #tutorial-start {
+    #tutorial-start, #tutorial-end-close {
       font-size: 18px;
       font-weight: bold;
       color: #fff;
@@ -197,6 +197,19 @@
         <p>やりかたは あそびながら おしえるよ！</p>
         <div class="tutorial-nav">
           <button id="tutorial-start">はじめる</button>
+        </div>
+      </div>
+    </div>
+    <div id="tutorial-end-overlay">
+      <div class="tutorial-card">
+        <div class="tutorial-icon">🎓</div>
+        <h2>れんしゅう おわり！</h2>
+        <p>ここからは じぶんの ちからで うちおとそう！</p>
+        <p>⭐ れんぞくで めいちゅうすると <b>ランクアップ</b>！</p>
+        <p>🔭 「いっちょまえ」に なると ふねが とおくなって、<br>すうちょくせんを タップで <b>ズーム</b>して しらべるよ！</p>
+        <p>🏆 「でんせつ」まで いくと「<b>おぼえてうつ</b>」が かいほう！<br>すうじを おぼえて じかんないに うつ、ほんものの ほうしゅだ！</p>
+        <div class="tutorial-nav">
+          <button id="tutorial-end-close">よし、やるぞ！</button>
         </div>
       </div>
     </div>
