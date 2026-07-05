@@ -85,3 +85,15 @@ test('judgeHit: 上級 margin では序盤で当たる差が外れになりう�
   assert.equal(judgeHit(placed, target, easy), true)
   assert.equal(judgeHit(placed, target, hard), false)
 })
+
+test('正解は島ぎわ（min+50未満）に出ない', () => {
+  for (let i = 0; i < 200; i++) {
+    const t = generateTargetInsideWindow(0, 1000, 1, 10)
+    assert.ok(t >= 50, `${t} は島ぎわ`)
+    assert.ok(t % 10 !== 0, `${t} は窓端`)
+  }
+  for (let i = 0; i < 200; i++) {
+    const t = generateTargetInsideWindow(0, 1000, 10, 100)
+    assert.ok(t >= 50, `${t} は島ぎわ`)
+  }
+})

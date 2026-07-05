@@ -136,12 +136,13 @@ class Game {
   }
 
   _buildState() {
-    // MEASURE フェーズは大砲の先端（画面幅15%）から数直線を始める。他は通常マージン。
-    const rsx = this._phase === 'MEASURE'
+    // 海の構図（MEASURE/FIRE/RESULT）は大砲の先端（画面幅15.5%）から数直線を始める。
+    // FIRE/RESULT も同じ起点にしないと、低い値の船・着弾が左端＝島の上に乗ってしまう。
+    const seaView = this._phase === 'MEASURE' || this._phase === 'FIRE' || this._phase === 'RESULT'
+    const rsx = seaView
       ? Math.round(this._canvas.width * 0.155)
       : CONFIG.RULER.MARGIN_X
-    // MEASURE：右端を双眼鏡フレームの内側（88%）に収める
-    const rex = this._phase === 'MEASURE'
+    const rex = seaView
       ? Math.round(this._canvas.width * 0.88)
       : this._canvas.width - CONFIG.RULER.MARGIN_X
     // FIRE/RESULT は「答え合わせ」＝全体スケール（0〜1000）で見せる。
@@ -383,8 +384,9 @@ class Game {
     // FIRE は RESULT と同じ着弾シーン構図（数直線=高さ35%・島の大砲から水平線へ撃つ）。
     // 発射→着弾で画面が切り替わる違和感をなくすため、最初から答え合わせの画面で飛ばす。
     const cv  = this._canvas
-    const rsx = CONFIG.RULER.MARGIN_X
-    const rex = cv.width - CONFIG.RULER.MARGIN_X
+    // 数直線の起点は _buildState の seaView と同じ（大砲先端15.5%〜88%）。ズレると着弾と目盛りが食い違う。
+    const rsx = Math.round(cv.width * 0.155)
+    const rex = Math.round(cv.width * 0.88)
     // 砲口＝island-cutout の絵の中の大砲の先端（島は幅16%・大砲が rulerY 付近に来る配置）
     const rulerY  = Math.round(cv.height * 0.35)
     const cannonX = Math.round(cv.width * 0.144)

@@ -170,21 +170,8 @@ export class Renderer {
         ctx.save()
         ctx.drawImage(img, srcX, 0, srcW, img.height, rsx, rulerY - rh / 2, rw, rh)
         ctx.restore()
-
-        // 両端だけ数字（0・最大値）。端の真上にセンタリング（1000が900の上に見えないように）。
-        // 画面からはみ出す分だけ内側へ寄せる。
-        ;[state.zoomMin, state.zoomMax].forEach((value) => {
-          const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-          ctx.font = 'bold 24px sans-serif'
-          ctx.textAlign = 'center'
-          const hw = ctx.measureText(String(value)).width / 2
-          const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
-          ctx.lineWidth = 5
-          ctx.strokeStyle = 'rgba(255,255,255,0.9)'
-          ctx.strokeText(String(value), lx, rulerY - 18)
-          ctx.fillStyle = '#111'
-          ctx.fillText(String(value), lx, rulerY - 18)
-        })
+        // 端の数字（0・1000等）はここで描かない：双眼鏡の枠より後（上）に描く。
+        // ここで描くと右端の「1000」が枠の金具に隠れて「100」に読めてしまう。
       } else {
         const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
 
@@ -215,17 +202,23 @@ export class Renderer {
           ctx.moveTo(x, rulerY - 30)
           ctx.lineTo(x, rulerY + 30)
           ctx.stroke()
-          // 端の真上にセンタリング。画面からはみ出す分だけ内側へ寄せる
-          ctx.font = 'bold 26px sans-serif'
-          ctx.textAlign = 'center'
-          const hw = ctx.measureText(String(value)).width / 2
-          const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
-          ctx.lineWidth = 6
-          ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-          ctx.strokeText(String(value), lx, rulerY - 36)
-          ctx.fillStyle = '#3C2415'
-          ctx.fillText(String(value), lx, rulerY - 36)
         })
+        // 端の数字はMEASUREだけ後段（双眼鏡の枠の上）で描く。他フェーズはここで描く。
+        if (state.phase !== 'MEASURE') {
+          ;[state.zoomMin, state.zoomMax].forEach((value) => {
+            const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+            // 端の真上にセンタリング。画面からはみ出す分だけ内側へ寄せる
+            ctx.font = 'bold 26px sans-serif'
+            ctx.textAlign = 'center'
+            const hw = ctx.measureText(String(value)).width / 2
+            const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
+            ctx.lineWidth = 6
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+            ctx.strokeText(String(value), lx, rulerY - 36)
+            ctx.fillStyle = '#3C2415'
+            ctx.fillText(String(value), lx, rulerY - 36)
+          })
+        }
       }
     }
 
@@ -460,6 +453,21 @@ export class Renderer {
         const fh = fw * (this._imgs['binocular-frame'].height / this._imgs['binocular-frame'].width)
         ctx.drawImage(this._imgs['binocular-frame'], cv.width / 2 - fw / 2, cy - fh / 2, fw, fh)
       }
+
+      // 数直線の端の数字（0・1000等）は枠より上に描く。
+      // 枠の下だと右端の「1000」が金具に隠れて「100」に読めてしまう（2026-07-05実機FB）。
+      ;[state.zoomMin, state.zoomMax].forEach((value) => {
+        const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
+        ctx.font = 'bold 26px sans-serif'
+        ctx.textAlign = 'center'
+        const hw = ctx.measureText(String(value)).width / 2
+        const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
+        ctx.lineWidth = 6
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeText(String(value), lx, rulerY - 18)
+        ctx.fillStyle = '#111'
+        ctx.fillText(String(value), lx, rulerY - 18)
+      })
     }
 
     // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
