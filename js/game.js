@@ -58,6 +58,9 @@ class Game {
     this._rankUp          = false
     this._rankUpName      = null
     this._resetConfirm    = false
+    // 初回プレイの操作ガイド（実画面で「今ここを押す」を吹き出しで誘導）。
+    // null=ガイドなし / 'measure'(めもりを読んで入力) / 'aim'(針を合わせる) / 'fire'(うつ！)
+    this._guide           = null
   }
 
   // イベントからキャンバス座標を得る（touchstart/touchend/mouse すべて対応）
@@ -258,6 +261,8 @@ class Game {
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
       // ズームしている最中だけ表示。どこをタップすれば戻れるか一目でわかるように専用ボタンを出す。
       zoomOutButtonRect: (this._phase === 'MEASURE' && this._canZoomOut()) ? this._zoomOutButtonRect() : null,
+      // 初回プレイの操作ガイド吹き出し（対象座標＋文言）。非ガイド時は null。
+      guide:           this._guideCallout(),
       resetButton:     this._phase === 'TITLE'
                          ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
       // おぼえてうつ（じかん制限で記憶して撃つ）は「よんでうつ」ででんせつランクに到達してから解放。
@@ -330,6 +335,41 @@ class Game {
   }
 
   // 照準パネルの数直線ジオメトリ（renderer と AimInput で共有）
+  // 初回プレイの操作ガイド：今やってほしい操作の場所へ吹き出しを出す。
+  // 座標は renderer と同じ式で毎フレーム計算（リサイズしてもズレない）。
+  _guideCallout() {
+    const cv = this._canvas
+    // タイトル画面：ようこそカードを閉じたら「よんでうつ」ボタンへ誘導
+    if (this._phase === 'TITLE') {
+      if (!this._tutorial.shouldGuide() || this._tutorial.isOpen()) return null
+      const b = this._modeButtonRects().beginner
+      return { x: b.x + b.w / 2, y: b.y + b.h / 2, ring: b, text: 'ここを タップで スタート！' }
+    }
+    if (!this._guide) return null
+    if (this._guide === 'measure' && this._phase === 'MEASURE') {
+      const rulerY = Math.round(cv.height * 0.35)
+      const rsx = Math.round(cv.width * 0.155)
+      const rex = Math.round(cv.width * 0.88)
+      const x = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
+      return { x, y: rulerY, ring: null,
+               text: 'ふねの したの めもりを よんで すうじを おそう！' }
+    }
+    if (this._phase === 'AIM') {
+      const a = this._aimInput.getState()
+      const g = this._panelGeom()
+      if (this._guide === 'aim') {
+        const nx = valueToX(a.needleValue, a.panelMin, a.panelMax, g.sx, g.ex)
+        return { x: nx, y: g.y - CONFIG.AIM_PANEL.HEIGHT / 2, ring: null,
+                 text: `あかい つまみを ${this._measuredValue} まで ドラッグ！` }
+      }
+      if (this._guide === 'fire') {
+        const b = this._buttonRects().fire
+        return { x: b.x + b.w / 2, y: b.y, ring: b, text: 'ぴったり！ うつ！ボタンで はっしゃ！' }
+      }
+    }
+    return null
+  }
+
   _panelGeom() {
     const sx = CONFIG.AIM_PANEL.MARGIN_X
     const ex = this._canvas.width - CONFIG.AIM_PANEL.MARGIN_X
@@ -389,6 +429,11 @@ class Game {
     } else {
       this._numpad.hide()
     }
+
+    // 初回プレイ（またはあそびかたボタンで再要求）の操作ガイドを開始。
+    // ガイドは初級（テンキーあり）の流れ専用。初回は必ず初級＆みならいなのでこれで足りる。
+    this._guide = (this._tutorial.shouldGuide() && CONFIG.MODES[this._mode].showNumpad) ? 'measure' : null
+    this._numpad.setHighlight(this._guide === 'measure')
 
     // 「読んで覚えたら そらをタップで射撃へ」（上級／初級は数字入力で進む）
     this._canvas.addEventListener('click',    this._handleMeasureTap)
@@ -499,7 +544,9 @@ class Game {
     this._canvas.removeEventListener('click',    this._handleMeasureTap)
     this._canvas.removeEventListener('touchend', this._handleMeasureTap)
     this._numpad.hide()
+    this._numpad.setHighlight(false)
     this._measuredValue = val
+    if (this._guide) this._guide = 'aim' // ガイド次段：針を合わせる
     // ※測量誤差（calcMeasurementError）は判定に使わない＝spec §6。記録が要るまで呼ばない。
     this._startAim()
   }
@@ -515,7 +562,14 @@ class Game {
       return [this._backButtonRect(), b.fire, b.zoom]
     })
     // 針ドラッグの手応え音（AudioManager 側で間引く）
-    this._aimInput.onNeedleMove = () => this._audio.playNeedle()
+    this._aimInput.onNeedleMove = () => {
+      this._audio.playNeedle()
+      // ガイド中：針が正解に十分近づいたら「うつ！」の案内へ（離れたら針合わせの案内に戻る）
+      if (this._guide === 'aim' || this._guide === 'fire') {
+        const near = Math.abs(this._aimInput.getState().needleValue - this._targetValue) <= this._stage.hitMargin
+        this._guide = near ? 'fire' : 'aim'
+      }
+    }
     // 発射ボタン／ズームボタンのタップを受ける（renderer がボタン矩形を描き、ここで当たり判定）
     this._canvas.addEventListener('click',    this._handleAimButtons)
     this._canvas.addEventListener('touchend', this._handleAimButtons, { passive: false })
@@ -551,6 +605,8 @@ class Game {
     this._canvas.removeEventListener('touchend', this._handleAimButtons)
     this._aimInput.detach()
     this._numpad.hide()
+    this._numpad.setHighlight(false)
+    this._guide = null // 途中でやめたら次のプレイでまた最初からガイドする（markSeenしない）
     this._phase = 'TITLE'
     this._resetConfirm = false
     this._addTitleListeners()
@@ -568,6 +624,8 @@ class Game {
   }
 
   _fire(value) {
+    // ガイドは発射までやり切ったら卒業（ここで初めて「見た」を記録する）
+    if (this._guide) { this._tutorial.markSeen(); this._guide = null }
     this._aimInput.detach()
     this._canvas.removeEventListener('click',    this._handleAimButtons)
     this._canvas.removeEventListener('touchend', this._handleAimButtons)

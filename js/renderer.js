@@ -149,6 +149,7 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,255,255,0.6)'
       ctx.fillText(VERSION, cv.width - 14, cv.height - 12)
       this._drawSoundButtons(state)
+      if (state.guide) this._drawGuide(state.guide) // 初回：「よんでうつ」への誘導
       return
     }
 
@@ -596,6 +597,58 @@ export class Renderer {
 
     // 音ON/OFFボタン（soundButtons がある画面でだけ描く。今はTITLEのみ）
     this._drawSoundButtons(state)
+
+    // 初回プレイの操作ガイド（最前面）：対象を指す吹き出し＋ボタンなら光る枠
+    if (state.guide) this._drawGuide(state.guide)
+  }
+
+  // ガイド吹き出し：対象の真上でふわふわ上下する吹き出し（▼のしっぽ付き）。
+  // guide.ring が矩形なら、その周りに脈打つ金色の枠も描く（ボタン誘導用）。
+  _drawGuide(guide) {
+    const ctx = this._ctx
+    const cv  = this._canvas
+    const t = performance.now() / 1000
+    ctx.save()
+
+    if (guide.ring) {
+      const pulse = 4 + Math.sin(t * 5) * 3
+      const r = guide.ring
+      ctx.strokeStyle = '#ffdd00'
+      ctx.lineWidth = 5
+      roundRectPath(ctx, r.x - pulse, r.y - pulse, r.w + pulse * 2, r.h + pulse * 2, 14)
+      ctx.stroke()
+    }
+
+    ctx.font = 'bold 24px sans-serif'
+    const pad = 16
+    const w = ctx.measureText(guide.text).width + pad * 2
+    const h = 48
+    const bounce = Math.sin(t * 3.5) * 7
+    let bx = guide.x - w / 2
+    bx = Math.max(10, Math.min(cv.width - w - 10, bx)) // 画面からはみ出さない
+    const tailH = 16
+    const by = guide.y - 64 - h - tailH + bounce
+
+    // しっぽ（▼）→ 本体の順に塗ってから、輪郭をまとめて描く
+    ctx.fillStyle = '#fffbe8'
+    ctx.strokeStyle = '#3C2415'
+    ctx.lineWidth = 3
+    roundRectPath(ctx, bx, by, w, h, 12)
+    ctx.fill(); ctx.stroke()
+    const tailX = Math.max(bx + 20, Math.min(bx + w - 20, guide.x))
+    ctx.beginPath()
+    ctx.moveTo(tailX - 11, by + h - 1)
+    ctx.lineTo(tailX + 11, by + h - 1)
+    ctx.lineTo(tailX, by + h + tailH)
+    ctx.closePath()
+    ctx.fill(); ctx.stroke()
+    // しっぽと本体の境目の線を消す（同色で上塗り）
+    ctx.fillRect(tailX - 9, by + h - 3, 18, 4)
+
+    ctx.fillStyle = '#3C2415'
+    ctx.textAlign = 'center'
+    ctx.fillText(guide.text, bx + w / 2, by + 32)
+    ctx.restore()
   }
 
   // 音ON/OFFボタン（効果音とBGMを別々に切替）。矩形は game.js の _soundButtonRects 由来＝単一の真実。

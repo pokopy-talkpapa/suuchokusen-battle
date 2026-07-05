@@ -50,6 +50,11 @@ export class Numpad {
     this._render()
   }
 
+  // チュートリアルガイド中：「今ここを押す」を光る枠で示す
+  setHighlight(on) {
+    this._el.classList.toggle('tutorial-focus', on)
+  }
+
   // 読み間違い（正解と違う数字を書いてしまった）の視覚フィードバック。文字は出さず色と揺れだけで伝える。
   flashWrong() {
     this._display.classList.add('wrong')

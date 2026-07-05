@@ -1,30 +1,37 @@
 // js/tutorial.js
+// チュートリアル＝「実際のプレイ画面での操作誘導（ガイド）」が本体。
+// この DOM オーバーレイは冒頭の物語1枚（きみは砲手だよ）だけを担当する。
+// 文字スライドで遊び方を説明しても子どもは読まないため、操作説明はすべて
+// game.js/renderer.js のガイド（吹き出し＋ハイライト）側でやる(2026-07-06方針転換)。
 const SEEN_KEY = 'suuchokusen_tutorial_seen_v1'
 
 export class Tutorial {
   constructor() {
     this._overlay  = document.getElementById('tutorial-overlay')
     this._openBtn  = document.getElementById('tutorial-open-btn')
-    this._slides   = Array.from(document.querySelectorAll('.tutorial-slide'))
-    this._dots     = Array.from(document.querySelectorAll('.tutorial-dots span'))
-    this._nextBtn  = document.getElementById('tutorial-next')
-    this._skipBtn  = document.getElementById('tutorial-skip')
-    this._index    = 0
+    this._startBtn = document.getElementById('tutorial-start')
     this._onClose  = null
+    this._guideRequested = false // 「あそびかた」ボタンで見返す時、次のプレイをもう一度ガイドする
 
-    this._nextBtn.addEventListener('click', () => this._advance())
-    this._skipBtn.addEventListener('click', () => this._close())
-    this._openBtn.addEventListener('click', () => this.show())
+    this._startBtn.addEventListener('click', () => this._close())
+    this._openBtn.addEventListener('click', () => { this._guideRequested = true; this.show() })
   }
 
-  // 初回起動時だけ自動表示するかどうか（localStorageに記録済みなら false）
   hasSeen() {
     try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true }
   }
 
+  // ガイドを最後（発射）までやり切った時だけ「見た」扱いにする。
+  // ようこそ画面を閉じただけでは記録しない＝途中でやめたら次のプレイでまたガイドする。
   markSeen() {
+    this._guideRequested = false
     try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private modeなど失敗しても致命的ではない */ }
   }
+
+  // 次のプレイをガイド付きにするか
+  shouldGuide() { return this._guideRequested || !this.hasSeen() }
+
+  isOpen() { return this._overlay.classList.contains('visible') }
 
   onClose(cb) { this._onClose = cb }
 
@@ -33,29 +40,10 @@ export class Tutorial {
     this._openBtn.classList.toggle('visible', visible)
   }
 
-  show() {
-    this._index = 0
-    this._render()
-    this._overlay.classList.add('visible')
-  }
-
-  _advance() {
-    if (this._index >= this._slides.length - 1) { this._close(); return }
-    this._index += 1
-    this._render()
-  }
+  show() { this._overlay.classList.add('visible') }
 
   _close() {
     this._overlay.classList.remove('visible')
-    this.markSeen()
     if (this._onClose) this._onClose()
-  }
-
-  _render() {
-    this._slides.forEach((el, i) => el.classList.toggle('active', i === this._index))
-    this._dots.forEach((el, i) => el.classList.toggle('active', i === this._index))
-    const isLast = this._index === this._slides.length - 1
-    this._nextBtn.textContent = isLast ? 'はじめる' : 'つぎへ'
-    this._skipBtn.style.visibility = isLast ? 'hidden' : 'visible'
   }
 }
