@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.23'
+export const VERSION = 'v1.24'
 
 export const CONFIG = {
   RULER: {

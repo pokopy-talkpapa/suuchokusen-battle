@@ -1,6 +1,6 @@
 // js/game.js
 import { CONFIG } from './config.js'
-import { valueToX, getMeasureWindow } from './ruler.js'
+import { valueToX, xToValue, getMeasureWindow } from './ruler.js'
 import { arcPoints } from './physics.js'
 import { generateTargetInsideWindow, judgeHit } from './measurement.js'
 import { UnlockState } from './unlock.js'
@@ -31,6 +31,7 @@ class Game {
     this._zoomMax         = 1000
     this._tickStep        = 100
     this._targetValue     = 0
+    this._measureSpan     = null
     this._measuredValue   = null
     this._timerRemaining  = null
     this._timerInterval   = null
@@ -165,8 +166,16 @@ class Game {
       enemyX,
       stageIndex:     this._stageIndex,
       stageName:      this._stage.name,
-      // 測量は窓の中、FIRE/RESULT は着弾シーン（同じ構図）で正解位置に船を出す。
-      showShip:       this._phase === 'MEASURE' || this._phase === 'FIRE' || this._phase === 'RESULT',
+      // 測量は「いま見えている範囲」に正解がある時だけ船を出す（違う部屋へズームしたら見えない）。
+      // FIRE/RESULT は着弾シーン（全体スケール）で常に正解位置に船を出す。
+      showShip:       this._phase === 'MEASURE'
+                        ? (this._targetValue >= vMin && this._targetValue <= vMax)
+                        : (this._phase === 'FIRE' || this._phase === 'RESULT'),
+      measureHint:    this._phase === 'MEASURE'
+                        ? (this._measureSpan && (this._zoomMax - this._zoomMin) > this._measureSpan
+                            ? 'ふねの あたりを タップ！'
+                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら そらを タップ！' : null))
+                        : null,
       // 敵船は showShip(MEASURE/RESULT のみ)で制御し、AIM/FIRE は一人称/横視点の背景が隠す。
       // 霧の白オーバーレイは背景アートを白く潰すため廃止。
       fog:            0,
@@ -239,12 +248,19 @@ class Game {
                      : null
     this._targetValue = generateTargetInsideWindow(
       CONFIG.RULER.MIN, CONFIG.RULER.MAX, this._stage.targetStep, windowSpan)
-    // 端でクランプ窓が潰れるのを避けたいだけなら target を内側へ寄せてもよいが、
-    // getMeasureWindow が端クランプ済なので 0/1000 でも安全。
-    const win = getMeasureWindow(this._targetValue, this._stage, CONFIG)
-    this._zoomMin  = win.min
-    this._zoomMax  = win.max
-    this._tickStep = win.tickStep
+    this._measureSpan = windowSpan
+    if (windowSpan) {
+      // 窓のある段階は全体0〜1000から始める。船のあたりをタップ→その「部屋」へズーム（A案・2026-07-05）。
+      // 自動で船の周りを枠取りすると「全体のどのへんか」を考える工程が丸ごと飛ぶため。
+      this._zoomMin  = CONFIG.RULER.MIN
+      this._zoomMax  = CONFIG.RULER.MAX
+      this._tickStep = 100
+    } else {
+      const win = getMeasureWindow(this._targetValue, this._stage, CONFIG)
+      this._zoomMin  = win.min
+      this._zoomMax  = win.max
+      this._tickStep = win.tickStep
+    }
 
     this._measuredValue = null
     this._firedArc      = null
@@ -278,16 +294,50 @@ class Game {
     }
   }
 
-  // 測量中のタップ：上級は「読んだ→射撃へ」進む合図（初級はテンキーのOKで進むので無視）。
-  // ※タップでズーム場所を選ぶ旧仕様は廃止（双眼鏡は船の周りを自動枠取り）。
+  // 測量中のタップ：
+  // ①窓のある段階＝数直線の近くをタップ→その「部屋」へズーム／もう一度で全体に戻る（A案）
+  // ②上級は数直線から離れた場所（そら）をタップ→射撃へ（初級はテンキーのOKで進む）
   _handleMeasureTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
     const p = this._eventXY(e)
     if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._audio.play('tap'); this._goToTitle(); return }
+    if (this._measureSpan && this._handleMeasureZoomTap(p)) return
     if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
     this._audio.play('tap')
     this._advanceFromMeasure()
+  }
+
+  // 数直線の帯（上下120px）へのタップだけズーム扱い。処理したら true。
+  // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥でもう一度タップ→全体へ戻る。
+  // 10の部屋を全体からいきなりタップで当てるのは無理なので、必ず100の部屋を経由する。
+  _handleMeasureZoomTap(p) {
+    const cv = this._canvas
+    const rulerY = Math.round(cv.height * 0.35) // 海の構図の数直線Y（renderer と同じ式）
+    if (Math.abs(p.y - rulerY) > 120) return false
+    this._audio.play('tap')
+    const width = this._zoomMax - this._zoomMin
+    if (width <= this._measureSpan) {
+      // いちばん奥まで来ている＝タップで全体に戻す（部屋を選び直せる）
+      this._zoomMin  = CONFIG.RULER.MIN
+      this._zoomMax  = CONFIG.RULER.MAX
+      this._tickStep = 100
+      return true
+    }
+    const rsx = Math.round(cv.width * 0.155)
+    const rex = Math.round(cv.width * 0.88)
+    const x = Math.max(rsx, Math.min(rex, p.x))
+    const v = xToValue(x, this._zoomMin, this._zoomMax, rsx, rex)
+    // 1段深い部屋へ（段階の窓幅より深くは行かない）
+    const span = Math.max(width > 100 ? 100 : 10, this._measureSpan)
+    let min = Math.floor(v / span) * span
+    let max = min + span
+    if (max > CONFIG.RULER.MAX) { max = CONFIG.RULER.MAX; min = max - span }
+    if (min < CONFIG.RULER.MIN) { min = CONFIG.RULER.MIN; max = min + span }
+    this._zoomMin  = min
+    this._zoomMax  = max
+    this._tickStep = span === 100 ? 10 : 1
+    return true
   }
 
   _advanceFromMeasure() {

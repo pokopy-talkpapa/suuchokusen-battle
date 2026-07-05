@@ -470,22 +470,23 @@ export class Renderer {
       })
     }
 
-    // タイマー＋進め方ヒント（MEASURE フェーズ・上級のみ）
+    // タイマー（MEASURE・上級のみ。左上・もどるボタンの右隣。ボタンの真下に描くと隠れて見えない）
     if (state.phase === 'MEASURE' && state.timerRemaining != null) {
-      // タイマー（左上・もどるボタンの右隣。ボタンの真下に描くと隠れて見えない）
       ctx.font = 'bold 30px sans-serif'
       ctx.textAlign = 'left'
       ctx.fillStyle = state.timerRemaining <= 5 ? '#ff5555' : '#ffffff'
       ctx.fillText(`⏱ ${state.timerRemaining}`, 116, 46)
-      // 「読んで覚えたら そらをタップで発射へ」ヒント（上中央）
+    }
+
+    // 進め方ヒント（上中央）：ズーム前=「ふねの あたりを タップ！」／上級ズーム後=「おぼえたら そらを タップ！」
+    if (state.measureHint) {
       ctx.font = 'bold 22px sans-serif'
       ctx.textAlign = 'center'
       ctx.strokeStyle = 'rgba(0,0,0,0.55)'
       ctx.lineWidth = 4
-      const hint = 'おぼえたら そらを タップ！'
-      ctx.strokeText(hint, cv.width / 2, 40)
+      ctx.strokeText(state.measureHint, cv.width / 2, 40)
       ctx.fillStyle = '#ffffff'
-      ctx.fillText(hint, cv.width / 2, 40)
+      ctx.fillText(state.measureHint, cv.width / 2, 40)
     }
 
     // ランクと連続命中メーター（右上・測量中）：上達の道を見える化
