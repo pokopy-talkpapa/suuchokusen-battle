@@ -10,6 +10,7 @@ import { isTapOnRect } from './tap.js'
 import { Renderer } from './renderer.js'
 import { currentStage, stageIndexFromMaxLevel, rankInfo } from './stage.js'
 import { calcShotScore, ScoreState } from './score.js'
+import { AudioManager } from './audio.js'
 
 class Game {
   constructor() {
@@ -19,6 +20,8 @@ class Game {
     this._aimInput = new AimInput()
     this._unlock   = UnlockState.load(CONFIG)
     this._score    = ScoreState.load(CONFIG.SCORE)
+    this._audio    = AudioManager.load()
+    this._numpad.onPress(() => this._audio.play('tap'))
 
     this._mode            = 'beginner'
     this._phase           = 'TITLE'
@@ -59,7 +62,10 @@ class Game {
     }
   }
 
-  _recordPress = (e) => { this._pressPoint = this._eventXY(e) }
+  _recordPress = (e) => {
+    this._pressPoint = this._eventXY(e)
+    this._audio.unlock() // iOSは最初のユーザー操作まで音を出せない
+  }
 
   async start() {
     await this._renderer.init(this._canvas, CONFIG)
@@ -80,12 +86,14 @@ class Game {
     this._canvas.removeEventListener('touchend', this._handleTitleTap)
   }
 
-  // タイトルのタップ：ランクリセット（2回押しで確定）／左右でモード選択
+  // タイトルのタップ：ランクリセット（2回押しで確定）／音ON/OFF／左右でモード選択
   _handleTitleTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'TITLE') return
     const p = this._eventXY(e)
+    if (this._handleSoundButtons(p)) return
     if (isTapOnRect(this._pressPoint, p, this._resetButtonRect())) {
+      this._audio.play('tap')
       if (this._resetConfirm) {
         this._unlock = new UnlockState(CONFIG) // ランクと連続命中を最初に戻す（じこベストは残す）
         this._unlock.save()
@@ -97,11 +105,35 @@ class Game {
     }
     this._resetConfirm = false
     this._mode = p.x > this._canvas.width / 2 ? 'expert' : 'beginner'
+    this._audio.play('tap')
     this._removeTitleListeners()
     this._startMeasure()
   }
 
   _resetButtonRect() { return { x: 14, y: this._canvas.height - 58, w: 210, h: 44 } }
+
+  // 音ON/OFFボタン（右下・TITLEとMEASUREに表示）。矩形は renderer と共有＝単一の真実。
+  _soundButtonRects() {
+    const cv = this._canvas
+    const bgm = { x: cv.width - 14 - 110, y: cv.height - 58, w: 110, h: 44 }
+    const sfx = { x: bgm.x - 10 - 110,    y: cv.height - 58, w: 110, h: 44 }
+    return { sfx, bgm }
+  }
+
+  // 音ボタンのタップ判定（TITLEのみ）。押していたら true を返す。
+  _handleSoundButtons(p) {
+    const b = this._soundButtonRects()
+    if (isTapOnRect(this._pressPoint, p, b.sfx)) {
+      this._audio.toggleSfx()
+      this._audio.play('tap') // ONにした直後の確認音（OFFなら鳴らない）
+      return true
+    }
+    if (isTapOnRect(this._pressPoint, p, b.bgm)) {
+      this._audio.toggleBgm() // OFFは toggleBgm 内で停止。ONは次のプレイ開始から鳴る
+      return true
+    }
+    return false
+  }
 
   _buildState() {
     // MEASURE フェーズは大砲の先端（画面幅15%）から数直線を始める。他は通常マージン。
@@ -169,6 +201,10 @@ class Game {
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
       resetButton:     this._phase === 'TITLE'
                          ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
+      // 音ボタンはTITLEのみ（MEASUREは右下にテンキーDOMが重なる）。プレイ中の消音は「もどる」経由。
+      soundButtons:    this._phase === 'TITLE'
+                         ? { rects: this._soundButtonRects(),
+                             sfxOn: this._audio.sfxOn, bgmOn: this._audio.bgmOn } : null,
       rulerGeom:       { rsx, rex },
     }
   }
@@ -183,6 +219,7 @@ class Game {
 
   _startMeasure() {
     this._phase = 'MEASURE'
+    this._audio.startBgm() // 既に鳴っていれば何もしない（タイトル復帰後の再開も兼ねる）
     // 段階＝連続命中ランク（両モード共通）。モードは「入力のしかた」だけの違い。
     this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
     this._stage      = currentStage(this._unlock.maxLevel, CONFIG)
@@ -246,8 +283,9 @@ class Game {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
     const p = this._eventXY(e)
-    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._goToTitle(); return }
+    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._audio.play('tap'); this._goToTitle(); return }
     if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
+    this._audio.play('tap')
     this._advanceFromMeasure()
   }
 
@@ -282,6 +320,8 @@ class Game {
       const b = this._buttonRects()
       return [this._backButtonRect(), b.fire, b.zoom]
     })
+    // 針ドラッグの手応え音（AudioManager 側で間引く）
+    this._aimInput.onNeedleMove = () => this._audio.playNeedle()
     // 発射ボタン／ズームボタンのタップを受ける（renderer がボタン矩形を描き、ここで当たり判定）
     this._canvas.addEventListener('click',    this._handleAimButtons)
     this._canvas.addEventListener('touchend', this._handleAimButtons, { passive: false })
@@ -295,10 +335,10 @@ class Game {
     if (this._phase !== 'AIM') return
     const p = this._eventXY(e)
 
-    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._goToTitle(); return }
+    if (isTapOnRect(this._pressPoint, p, this._backButtonRect())) { this._audio.play('tap'); this._goToTitle(); return }
     const b = this._buttonRects()
     if (b.fire && isTapOnRect(this._pressPoint, p, b.fire)) { this._fireFromButton(); return }
-    if (b.zoom && isTapOnRect(this._pressPoint, p, b.zoom)) { this._aimInput.toggleZoom(); return }
+    if (b.zoom && isTapOnRect(this._pressPoint, p, b.zoom)) { this._audio.play('tap'); this._aimInput.toggleZoom(); return }
   }
 
   _fireFromButton() {
@@ -309,6 +349,7 @@ class Game {
   _backButtonRect() { return { x: 14, y: 14, w: 88, h: 44 } }
 
   _goToTitle() {
+    this._audio.stopBgm() // タイトルは無音（教室で置いておける）
     clearInterval(this._timerInterval)
     this._canvas.removeEventListener('click',    this._handleMeasureTap)
     this._canvas.removeEventListener('touchend', this._handleMeasureTap)
@@ -336,6 +377,8 @@ class Game {
     this._canvas.removeEventListener('click',    this._handleAimButtons)
     this._canvas.removeEventListener('touchend', this._handleAimButtons)
     this._phase = 'FIRE'
+    this._audio.play('fire')
+    this._audio.play('whistle', 0.1) // 発射音の直後から飛翔ヒュー（着弾700msに合わせた長さ）
 
     // FIRE は RESULT と同じ着弾シーン構図（数直線=高さ35%・島の大砲から水平線へ撃つ）。
     // 発射→着弾で画面が切り替わる違和感をなくすため、最初から答え合わせの画面で飛ばす。
@@ -375,6 +418,11 @@ class Game {
     this._setFinished = r.finished
     this._newBest     = r.isNewBest
     this._score.save()
+
+    // 着弾音→（あれば）ランクアップのファンファーレ→セット完了ジングルの順で重ねる
+    this._audio.play(isHit ? 'hit' : 'miss')
+    if (this._rankUp) this._audio.play('rankup', 0.9)
+    if (this._setFinished) this._audio.play('setend', this._rankUp ? 1.7 : 0.9)
 
     this._fireStart   = null
     this._resultStart = performance.now()

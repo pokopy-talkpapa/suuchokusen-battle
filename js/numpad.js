@@ -5,6 +5,7 @@ export class Numpad {
     this._display = document.getElementById('display-input')
     this._value   = ''
     this._onSubmit = null
+    this._onPress  = null
     this._bind()
   }
 
@@ -12,6 +13,7 @@ export class Numpad {
     this._el.addEventListener('click', (e) => {
       const btn = e.target.closest('button')
       if (!btn) return
+      if (this._onPress) this._onPress() // どのキーでも押した手応え（効果音用）
       if (btn.id === 'btn-clear') {
         this._value = this._value.slice(0, -1)
       } else if (btn.id === 'btn-ok') {
@@ -54,5 +56,9 @@ export class Numpad {
 
   onSubmit(cb) {
     this._onSubmit = cb
+  }
+
+  onPress(cb) {
+    this._onPress = cb
   }
 }

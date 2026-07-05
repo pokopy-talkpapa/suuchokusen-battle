@@ -21,6 +21,7 @@ export class AimInput {
     this._needleVal = 500
     this._dragging  = false
     this._handlers  = {}
+    this.onNeedleMove = null // 針が動いたとき呼ぶ（game が効果音を鳴らす。間引きは音側）
   }
 
   setStage(stage) {
@@ -81,7 +82,9 @@ export class AimInput {
     const setFromX = (x) => {
       const { sx, ex } = this._getGeom()
       const cx = Math.max(sx, Math.min(ex, x))
+      const prev = this._needleVal
       this._needleVal = xToValue(cx, this._panelMin, this._panelMax, sx, ex)
+      if (this._needleVal !== prev && this.onNeedleMove) this.onNeedleMove()
     }
     const inBlockedRect = (x, y) => {
       const rects = this._getBlockedRects ? this._getBlockedRects() : []

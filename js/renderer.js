@@ -143,6 +143,7 @@ export class Renderer {
       ctx.textAlign = 'right'
       ctx.fillStyle = 'rgba(255,255,255,0.6)'
       ctx.fillText(VERSION, cv.width - 14, cv.height - 12)
+      this._drawSoundButtons(state)
       return
     }
 
@@ -528,6 +529,29 @@ export class Renderer {
       ctx.fillText('◀ もどる', b.x + b.w / 2, b.y + 30)
       ctx.restore()
     }
+
+    // 音ON/OFFボタン（soundButtons がある画面でだけ描く。今はTITLEのみ）
+    this._drawSoundButtons(state)
+  }
+
+  // 音ON/OFFボタン（効果音とBGMを別々に切替）。矩形は game.js の _soundButtonRects 由来＝単一の真実。
+  _drawSoundButtons(state) {
+    if (!state.soundButtons) return
+    const ctx = this._ctx
+    const { rects, sfxOn, bgmOn } = state.soundButtons
+    const drawToggle = (r, on, label) => {
+      ctx.save()
+      ctx.fillStyle = on ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.7)'
+      roundRectPath(ctx, r.x, r.y, r.w, r.h, 10)
+      ctx.fill()
+      ctx.font = 'bold 17px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = on ? '#ffffff' : 'rgba(255,255,255,0.45)'
+      ctx.fillText(label, r.x + r.w / 2, r.y + 28)
+      ctx.restore()
+    }
+    drawToggle(rects.sfx, sfxOn, sfxOn ? '🔊 おと' : '🔇 おと')
+    drawToggle(rects.bgm, bgmOn, bgmOn ? '🎵 きょく' : '🎵 きょく✕')
   }
 
   startLoop(getState) {
