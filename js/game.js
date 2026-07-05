@@ -11,6 +11,7 @@ import { Renderer } from './renderer.js'
 import { currentStage, stageIndexFromMaxLevel, rankInfo } from './stage.js'
 import { calcShotScore, ScoreState } from './score.js'
 import { AudioManager } from './audio.js'
+import { Tutorial } from './tutorial.js'
 
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
 function lerp(a, b, t) { return a + (b - a) * t }
@@ -25,6 +26,8 @@ class Game {
     this._score    = ScoreState.load(CONFIG.SCORE)
     this._audio    = AudioManager.load()
     this._numpad.onPress(() => this._audio.play('tap'))
+    this._tutorial = new Tutorial()
+    this._tutorial.onClose(() => this._audio.play('tap'))
 
     this._mode            = 'beginner'
     this._phase           = 'TITLE'
@@ -79,6 +82,8 @@ class Game {
     this._canvas.addEventListener('touchstart', this._recordPress, { passive: true })
     this._canvas.addEventListener('mousedown',  this._recordPress)
     this._addTitleListeners()
+    this._tutorial.setOpenButtonVisible(true) // 起動時はTITLE表示中
+    if (!this._tutorial.hasSeen()) this._tutorial.show()
   }
 
   _addTitleListeners() {
@@ -332,6 +337,7 @@ class Game {
 
   _startMeasure() {
     this._phase = 'MEASURE'
+    this._tutorial.setOpenButtonVisible(false)
     this._audio.startBgm() // 既に鳴っていれば何もしない（タイトル復帰後の再開も兼ねる）
     // 段階＝連続命中ランク（両モード共通）。モードは「入力のしかた」だけの違い。
     this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
@@ -413,7 +419,8 @@ class Game {
   }
 
   // 数直線の帯（上下120px）へのタップだけズーム扱い。処理したら true。
-  // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥でもう一度タップ→全体へ戻る。
+  // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥でもう一度タップ→
+  // 1段階だけ手前に戻る（でんせつなら10の部屋→100の部屋、100の部屋→全体）＝一気に全体へは戻さない。
   // 10の部屋を全体からいきなりタップで当てるのは無理なので、必ず100の部屋を経由する。
   _handleMeasureZoomTap(p) {
     const cv = this._canvas
@@ -422,8 +429,16 @@ class Game {
     this._audio.play('tap')
     const width = this._zoomMax - this._zoomMin
     if (width <= this._measureSpan) {
-      // いちばん奥まで来ている＝タップで全体に戻す（部屋を選び直せる）＝ズームアウト
-      this._animateZoomTo(CONFIG.RULER.MIN, CONFIG.RULER.MAX, 100)
+      // いちばん奥まで来ている＝タップで1段階だけ手前に戻す（部屋を選び直せる）＝ズームアウト
+      if (width < 100) {
+        // 10の部屋→100の部屋へ（今いた場所を含む100の部屋を復元）
+        const backSpan = 100
+        const min = Math.floor(this._zoomMin / backSpan) * backSpan
+        this._animateZoomTo(min, min + backSpan, 10)
+      } else {
+        // 100の部屋→全体へ（これより手前の中間段階はない）
+        this._animateZoomTo(CONFIG.RULER.MIN, CONFIG.RULER.MAX, 100)
+      }
       return true
     }
     const rsx = Math.round(cv.width * 0.155)
@@ -519,6 +534,7 @@ class Game {
     this._phase = 'TITLE'
     this._resetConfirm = false
     this._addTitleListeners()
+    this._tutorial.setOpenButtonVisible(true)
   }
 
   // 発射／ズームボタンの矩形（renderer.drawFrame と同じ式・単一の真実にするため共有計算）

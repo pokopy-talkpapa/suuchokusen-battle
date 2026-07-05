@@ -102,6 +102,72 @@
     @media (orientation: portrait) {
       #rotate-overlay { display: flex; }
     }
+    #tutorial-open-btn {
+      position: absolute;
+      z-index: 12;
+      top: calc(14px + env(safe-area-inset-top));
+      right: calc(14px + env(safe-area-inset-right));
+      font-size: 15px;
+      font-weight: bold;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      border: 2px solid #ffcc33;
+      border-radius: 20px;
+      padding: 8px 16px;
+      cursor: pointer;
+      touch-action: manipulation;
+      display: none;
+    }
+    #tutorial-open-btn.visible { display: block; }
+    #tutorial-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0,0,0,0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+    #tutorial-overlay.visible { display: flex; }
+    .tutorial-card {
+      width: min(560px, 88vw);
+      max-height: 84vh;
+      overflow-y: auto;
+      background: #fdf6e3;
+      border: 4px solid #3C2415;
+      border-radius: 18px;
+      padding: 24px 26px 18px;
+      color: #3C2415;
+    }
+    .tutorial-slide { display: none; }
+    .tutorial-slide.active { display: block; }
+    .tutorial-slide .tutorial-icon { font-size: 44px; text-align: center; margin-bottom: 6px; }
+    .tutorial-slide h2 { font-size: 20px; text-align: center; margin-bottom: 12px; }
+    .tutorial-slide p { font-size: 15px; line-height: 1.7; margin-bottom: 8px; }
+    .tutorial-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+    }
+    .tutorial-nav button {
+      font-size: 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #tutorial-skip { background: #ddd; color: #555; }
+    #tutorial-next { background: #F7931E; color: #fff; }
+    .tutorial-dots { display: flex; gap: 6px; }
+    .tutorial-dots span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #ddd;
+    }
+    .tutorial-dots span.active { background: #4DBCBC; }
   </style>
 </head>
 <body>
@@ -121,6 +187,47 @@
       <button data-digit="9">9</button>
       <button data-digit="0">0</button>
       <button id="btn-ok">OK</button>
+    </div>
+    <button id="tutorial-open-btn">📖 あそびかた</button>
+    <div id="tutorial-overlay">
+      <div class="tutorial-card">
+        <div class="tutorial-slide active" data-slide="0">
+          <div class="tutorial-icon">🏴‍☠️</div>
+          <h2>すうちょくせんバトルへようこそ</h2>
+          <p>海の向こうにいる海賊船を、大砲でねらいうちしよう！</p>
+          <p>船の場所を数直線で調べて、そこをねらって発射するよ。</p>
+        </div>
+        <div class="tutorial-slide" data-slide="1">
+          <div class="tutorial-icon">🔭</div>
+          <h2>①船の場所をしらべる</h2>
+          <p>双眼鏡で数直線をのぞいて、海賊船がどこにいるか数字で読み取ろう。</p>
+          <p>数直線をタップすると、その場所がズームして読みやすくなるよ。</p>
+        </div>
+        <div class="tutorial-slide" data-slide="2">
+          <div class="tutorial-icon">💣</div>
+          <h2>②ねらって発射！</h2>
+          <p>読み取った数字のところに大砲をあわせて、指でひっぱって発射しよう。</p>
+          <p>船にピタッと命中すれば高得点だよ。</p>
+        </div>
+        <div class="tutorial-slide" data-slide="3">
+          <div class="tutorial-icon">⭐</div>
+          <h2>③れんぞく命中でランクアップ</h2>
+          <p>3回れんぞくで命中すると「いっちょまえ」に、6回で「でんせつ」にランクアップ！</p>
+          <p>ランクが上がるほど数直線がくわしくなって、むずかしくなるよ。</p>
+        </div>
+        <div class="tutorial-slide" data-slide="4">
+          <div class="tutorial-icon">🎉</div>
+          <h2>さあ、はじめよう！</h2>
+          <p>あそびかたは、タイトル画面右上の「📖 あそびかた」ボタンからいつでも見られるよ。</p>
+        </div>
+        <div class="tutorial-nav">
+          <button id="tutorial-skip">とばす</button>
+          <div class="tutorial-dots">
+            <span data-dot="0"></span><span data-dot="1"></span><span data-dot="2"></span><span data-dot="3"></span><span data-dot="4"></span>
+          </div>
+          <button id="tutorial-next">つぎへ</button>
+        </div>
+      </div>
     </div>
     <div id="rotate-overlay">
       <div class="rotate-inner">
