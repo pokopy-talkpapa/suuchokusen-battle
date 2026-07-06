@@ -128,13 +128,38 @@ export class Renderer {
         drawBtn(cv.width * 0.73, '#c0531f', 'おぼえてうつ', 'じかんせいげんで きおく')
       }
 
-      // 現在のランクと自己ベスト（ボタンの下）
-      if (state.rank) {
-        ctx.font = 'bold 20px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillStyle = '#ffdd00'
-        const bestText = state.score && state.score.best > 0 ? `　じこベスト ${state.score.best}てん` : ''
-        ctx.fillText(`ランク：${state.rank.name}${bestText}`, cv.width / 2, by + bh + 38)
+      // ランク選択チップ（ボタンの下）：解放済みならタップでいつでも戻れる／進める。
+      // 「難しかったら1個戻る」「苦手な段を練習する」を子ども自身が選べるようにする。
+      if (state.rankChips) {
+        const { rects, selected, maxLevel } = state.rankChips
+        const labels = ['☀️ みならい', '🌇 いっちょまえ', '🌙 でんせつ']
+        rects.forEach((r, i) => {
+          const lvl = i + 1
+          const unlocked = lvl <= maxLevel
+          const isSel = lvl === selected
+          ctx.fillStyle = !unlocked ? 'rgba(40,40,40,0.72)'
+                        : isSel     ? '#c0531f'
+                        :             'rgba(20,40,70,0.72)'
+          roundRectPath(ctx, r.x, r.y, r.w, r.h, 12)
+          ctx.fill()
+          if (isSel) {
+            ctx.lineWidth = 4
+            ctx.strokeStyle = '#ffdd00'
+            roundRectPath(ctx, r.x, r.y, r.w, r.h, 12)
+            ctx.stroke()
+          }
+          ctx.font = 'bold 17px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillStyle = unlocked ? '#ffffff' : 'rgba(255,255,255,0.45)'
+          const label = unlocked ? labels[i] : '🔒 ' + labels[i].replace(/^\S+ /, '')
+          ctx.fillText(label, r.x + r.w / 2, r.y + 30)
+        })
+        // 自己ベスト（チップの下）
+        if (state.score && state.score.best > 0) {
+          ctx.font = 'bold 18px sans-serif'
+          ctx.fillStyle = '#ffdd00'
+          ctx.fillText(`じこベスト ${state.score.best}てん`, cv.width / 2, rects[0].y + rects[0].h + 28)
+        }
       }
 
       // ランクリセット（左下・2回押しで確定）
@@ -576,7 +601,8 @@ export class Renderer {
       ctx.font = 'bold 20px sans-serif'
       ctx.textAlign = 'right'
       ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.fillText(r.name, cv.width - 20, 32)
+      // 表示は「今あそんでいる段」の名前（下のランクを選んで練習中に最高ランク名が出ると混乱する）
+      ctx.fillText(state.stageName || r.name, cv.width - 20, 32)
       if (r.needed != null) {
         // 次のランクまでのメーター（●=連続命中）右揃え
         const rad = 7, gap = 20

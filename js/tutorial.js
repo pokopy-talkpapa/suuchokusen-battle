@@ -3,7 +3,30 @@
 // この DOM オーバーレイは冒頭の物語1枚（きみは砲手だよ）だけを担当する。
 // 文字スライドで遊び方を説明しても子どもは読まないため、操作説明はすべて
 // game.js/renderer.js のガイド（吹き出し＋ハイライト）側でやる(2026-07-06方針転換)。
-const SEEN_KEY = 'suuchokusen_tutorial_seen_v1'
+const SEEN_KEY        = 'suuchokusen_tutorial_seen_v1'
+const RANKUP_SEEN_KEY = 'suuchokusen_rankup_seen_v1'
+
+// 初めてそのランクに上がった時だけ見せる説明カード。
+// ポイントは「敵は遠くなるのではなく“小さくなる”」＝だからズームして細かく読む、を明言すること。
+const RANKUP_CARDS = {
+  2: {
+    icon: '⛵',
+    title: 'いっちょまえ砲手に ランクアップ！',
+    body: [
+      'こんどの てきは <b>ちいさい ふね</b>！',
+      '🔍 ふねの あたりを タップすると <b>ズーム</b>して こまかい めもりが よめるよ！',
+    ],
+  },
+  3: {
+    icon: '🚁',
+    title: 'でんせつの砲手に ランクアップ！',
+    body: [
+      'てきは そらとぶ ドローン！ もっと <b>ちいさい</b>ぞ！',
+      '🔍 ズームは <b>2かい</b> できる！ 1の めもりまで よもう！',
+      '🏆 「<b>おぼえてうつ</b>」モードも かいほう！',
+    ],
+  },
+}
 
 export class Tutorial {
   constructor() {
@@ -12,8 +35,14 @@ export class Tutorial {
     this._startBtn   = document.getElementById('tutorial-start')
     this._endOverlay = document.getElementById('tutorial-end-overlay')
     this._endBtn     = document.getElementById('tutorial-end-close')
+    this._rankupOverlay = document.getElementById('rankup-overlay')
+    this._rankupIcon    = document.getElementById('rankup-icon')
+    this._rankupTitle   = document.getElementById('rankup-title')
+    this._rankupBody    = document.getElementById('rankup-body')
+    this._rankupBtn     = document.getElementById('rankup-close')
     this._onClose    = null
     this._onEndClose = null
+    this._onRankupClose = null
     this._guideRequested = false // 「あそびかた」ボタンで見返す時、次のプレイをもう一度ガイドする
 
     this._startBtn.addEventListener('click', () => this._close())
@@ -21,6 +50,12 @@ export class Tutorial {
     this._endBtn.addEventListener('click', () => {
       this._endOverlay.classList.remove('visible')
       if (this._onEndClose) this._onEndClose()
+    })
+    this._rankupBtn.addEventListener('click', () => {
+      this._rankupOverlay.classList.remove('visible')
+      const cb = this._onRankupClose
+      this._onRankupClose = null
+      if (cb) cb()
     })
   }
 
@@ -47,6 +82,37 @@ export class Tutorial {
   showEnd() {
     this.markSeen()
     this._endOverlay.classList.add('visible')
+  }
+
+  // ── ランクアップ説明カード（そのランクに初めて上がった時だけ） ──
+  hasSeenRankUp(level) {
+    try { return JSON.parse(localStorage.getItem(RANKUP_SEEN_KEY) || '{}')[level] === true }
+    catch { return true }
+  }
+
+  markRankUpSeen(level) {
+    try {
+      const d = JSON.parse(localStorage.getItem(RANKUP_SEEN_KEY) || '{}')
+      d[level] = true
+      localStorage.setItem(RANKUP_SEEN_KEY, JSON.stringify(d))
+    } catch { /* private modeなど失敗しても致命的ではない */ }
+  }
+
+  // ランクリセット時に呼ぶ＝最初からやり直す子には説明ももう一度見せる
+  resetRankUpSeen() {
+    try { localStorage.removeItem(RANKUP_SEEN_KEY) } catch { /* 同上 */ }
+  }
+
+  // カードを表示して既読にする。閉じたら onClose（次のラウンド開始）を呼ぶ。
+  showRankUp(level, onClose) {
+    const card = RANKUP_CARDS[level]
+    if (!card) { if (onClose) onClose(); return }
+    this._rankupIcon.textContent = card.icon
+    this._rankupTitle.textContent = card.title
+    this._rankupBody.innerHTML = card.body.map(t => `<p>${t}</p>`).join('')
+    this._onRankupClose = onClose
+    this._rankupOverlay.classList.add('visible')
+    this.markRankUpSeen(level)
   }
 
   // タイトル画面にいる間だけ「あそびかた」ボタンを出す

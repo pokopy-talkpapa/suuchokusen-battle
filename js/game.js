@@ -60,6 +60,9 @@ class Game {
     this._rankUp          = false
     this._rankUpName      = null
     this._resetConfirm    = false
+    // 遊ぶランクの手動選択（タイトルのランクチップ）。null=解放済みのいちばん上で遊ぶ。
+    // 解放済みなら下のランクへいつでも戻れる（苦手練習・難しかったら1個戻る）。
+    this._playLevel       = this._loadPlayLevel()
     // 初回プレイの操作ガイド（実画面で「今ここを押す」を吹き出しで誘導）。
     // null=ガイドなし / 'measure'(めもりを読んで入力) / 'aim'(針を合わせる) / 'fire'(うつ！)
     this._guide           = null
@@ -115,6 +118,9 @@ class Game {
       if (this._resetConfirm) {
         this._unlock = new UnlockState(CONFIG) // ランクと連続命中を最初に戻す（じこベストは残す）
         this._unlock.save()
+        this._tutorial.resetRankUpSeen() // 最初からやり直す子にはランクアップ説明ももう一度見せる
+        this._playLevel = null           // 遊ぶランクの選択もリセット
+        this._savePlayLevel()
         this._resetConfirm = false
       } else {
         this._resetConfirm = true
@@ -122,6 +128,18 @@ class Game {
       return
     }
     this._resetConfirm = false
+    // ランク選択チップ：解放済みのランクならタップでいつでも切り替え（🔒は無視）
+    const chips = this._rankChipRects()
+    for (let i = 0; i < chips.length; i++) {
+      if (isTapOnRect(this._pressPoint, p, chips[i])) {
+        if (this._unlock.isUnlocked(i + 1)) {
+          this._playLevel = i + 1
+          this._savePlayLevel()
+          this._audio.play('tap')
+        }
+        return
+      }
+    }
     const mb = this._modeButtonRects()
     const mode = isTapOnRect(this._pressPoint, p, mb.beginner) ? 'beginner'
                : (isTapOnRect(this._pressPoint, p, mb.expert) && this._isExpertUnlocked()) ? 'expert'
@@ -137,6 +155,37 @@ class Game {
 
   // おぼえてうつ解放条件＝でんせつランク（maxLevel 3）に到達済み（2026-07-05 ぽこぴぃ確定）
   _isExpertUnlocked() { return this._unlock.maxLevel >= 3 }
+
+  // ── 遊ぶランクの選択（解放済みの範囲でいつでも上下できる） ──
+  _loadPlayLevel() {
+    try {
+      const v = parseInt(localStorage.getItem('suuchokusen_play_level_v1'), 10)
+      return (v >= 1 && v <= CONFIG.STAGES.length) ? v : null
+    } catch { return null }
+  }
+
+  _savePlayLevel() {
+    try {
+      if (this._playLevel == null) localStorage.removeItem('suuchokusen_play_level_v1')
+      else localStorage.setItem('suuchokusen_play_level_v1', String(this._playLevel))
+    } catch { /* private modeなど失敗しても致命的ではない */ }
+  }
+
+  // 実際に遊ぶランク＝選択値を解放済みの範囲に丸める（未選択なら解放済みのいちばん上）
+  _effectiveLevel() {
+    const max = this._unlock.maxLevel
+    return Math.max(1, Math.min(this._playLevel ?? max, max))
+  }
+
+  // タイトルのランク選択チップ3つの矩形（モードボタンの下・中央寄せ）
+  _rankChipRects() {
+    const cv = this._canvas
+    const mb = this._modeButtonRects()
+    const w = Math.min(176, cv.width * 0.24), h = 46, gap = 12
+    const x0 = cv.width / 2 - (w * 3 + gap * 2) / 2
+    const y  = mb.beginner.y + mb.beginner.h + 18
+    return [0, 1, 2].map(i => ({ x: x0 + i * (w + gap), y, w, h }))
+  }
 
   // モード選択の2ボタン矩形（renderer の drawBtn と同じ式・単一の真実にするため共有計算）
   _modeButtonRects() {
@@ -272,6 +321,11 @@ class Game {
       guide:           this._guideCallout(),
       resetButton:     this._phase === 'TITLE'
                          ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
+      // ランク選択チップ（タイトルのみ）：解放済みはタップで切替・未解放は🔒表示
+      rankChips:       this._phase === 'TITLE'
+                         ? { rects: this._rankChipRects(),
+                             selected: this._effectiveLevel(),
+                             maxLevel: this._unlock.maxLevel } : null,
       // おぼえてうつ（じかん制限で記憶して撃つ）は「よんでうつ」ででんせつランクに到達してから解放。
       // 読まずに記憶頼みで進めるのを防ぐため、まず読む力を一定水準まで育ててから開放する順にする。
       expertLocked:    !this._isExpertUnlocked(),
@@ -388,9 +442,10 @@ class Game {
     this._phase = 'MEASURE'
     this._tutorial.setOpenButtonVisible(false)
     this._audio.startBgm() // 既に鳴っていれば何もしない（タイトル復帰後の再開も兼ねる）
-    // 段階＝連続命中ランク（両モード共通）。モードは「入力のしかた」だけの違い。
-    this._stageIndex = stageIndexFromMaxLevel(this._unlock.maxLevel, CONFIG)
-    this._stage      = currentStage(this._unlock.maxLevel, CONFIG)
+    // 段階＝タイトルで選んだランク（未選択なら解放済みのいちばん上）。モードは「入力のしかた」だけの違い。
+    const playLevel  = this._effectiveLevel()
+    this._stageIndex = stageIndexFromMaxLevel(playLevel, CONFIG)
+    this._stage      = currentStage(playLevel, CONFIG)
 
     // 前のセットが満了していたら新しいセットを始める
     if (this._score.isSetFinished()) this._score.startNewSet()
@@ -689,6 +744,11 @@ class Game {
     this._unlock.save()
     this._rankUp = this._unlock.maxLevel > prevMax
     this._rankUpName = this._rankUp ? currentStage(this._unlock.maxLevel, CONFIG).name : null
+    if (this._rankUp) {
+      // 上がった瞬間はその新ランクで遊ぶ（下のランクを選んで練習していた場合も新ランクへ）
+      this._playLevel = this._unlock.maxLevel
+      this._savePlayLevel()
+    }
 
     // スコア（誤差→点数・SET_SIZE発で1セット・自己ベスト永続化）
     this._lastShotScore = calcShotScore(this._landingValue, this._targetValue, this._stage.hitMargin, CONFIG.SCORE)
@@ -706,7 +766,16 @@ class Game {
     this._resultStart = performance.now()
     // ランクアップやセット満了はじっくり見せる
     this._resultDur = (this._rankUp || this._setFinished) ? 3000 : this._resultDuration
-    setTimeout(() => this._startMeasure(), this._resultDur)
+    // そのランクに初めて上がった時だけ、次のラウンドの前に説明カードを見せる
+    // （敵が「小さくなる」・ズームできる、を実物を見せる直前に一言で）
+    const rankUpLevel = this._rankUp ? this._unlock.maxLevel : null
+    setTimeout(() => {
+      if (rankUpLevel != null && !this._tutorial.hasSeenRankUp(rankUpLevel)) {
+        this._tutorial.showRankUp(rankUpLevel, () => { this._audio.play('tap'); this._startMeasure() })
+      } else {
+        this._startMeasure()
+      }
+    }, this._resultDur)
   }
 }
 

@@ -117,9 +117,10 @@
       cursor: pointer;
       touch-action: manipulation;
       display: none;
+      white-space: nowrap; /* ボタンの文字は折り返さない */
     }
     #tutorial-open-btn.visible { display: block; }
-    #tutorial-overlay, #tutorial-end-overlay {
+    #tutorial-overlay, #tutorial-end-overlay, #rankup-overlay {
       position: absolute;
       inset: 0;
       z-index: 50;
@@ -129,7 +130,7 @@
       justify-content: center;
       touch-action: none;
     }
-    #tutorial-overlay.visible, #tutorial-end-overlay.visible { display: flex; }
+    #tutorial-overlay.visible, #tutorial-end-overlay.visible, #rankup-overlay.visible { display: flex; }
     .tutorial-card {
       width: min(560px, 88vw);
       max-height: 84vh;
@@ -141,14 +142,22 @@
       color: #3C2415;
     }
     .tutorial-card .tutorial-icon { font-size: 52px; text-align: center; margin-bottom: 6px; }
-    .tutorial-card h2 { font-size: 22px; text-align: center; margin-bottom: 12px; }
-    .tutorial-card p { font-size: 16px; line-height: 1.8; margin-bottom: 8px; text-align: center; }
+    /* わかちがき（単語間スペース）でだけ折り返す＝「あと2〜3文字」の変な改行を防ぐ。
+       折り返すときは text-wrap: balance で行の長さを揃える（非対応ブラウザは無視されるだけ）。 */
+    .tutorial-card h2 {
+      font-size: 22px; text-align: center; margin-bottom: 12px;
+      word-break: keep-all; text-wrap: balance;
+    }
+    .tutorial-card p {
+      font-size: 16px; line-height: 1.8; margin-bottom: 8px; text-align: center;
+      word-break: keep-all; text-wrap: balance;
+    }
     .tutorial-nav {
       display: flex;
       justify-content: center;
       margin-top: 18px;
     }
-    #tutorial-start, #tutorial-end-close {
+    #tutorial-start, #tutorial-end-close, #rankup-close {
       font-size: 18px;
       font-weight: bold;
       color: #fff;
@@ -158,6 +167,7 @@
       padding: 12px 40px;
       cursor: pointer;
       touch-action: manipulation;
+      white-space: nowrap; /* ボタンの文字は絶対に折り返さない */
     }
     /* プレイ画面ガイド中：いま押してほしいテンキーを光らせる */
     #numpad.tutorial-focus {
@@ -206,10 +216,20 @@
         <h2>れんしゅう おわり！</h2>
         <p>ここからは じぶんの ちからで やっつけよう！</p>
         <p>⭐ れんぞくで めいちゅうすると <b>ランクアップ</b>！</p>
-        <p>🔭 「いっちょまえ」に なると ふねが とおくなって、<br>すうちょくせんを タップで <b>ズーム</b>して しらべるよ！</p>
-        <p>🏆 「でんせつ」まで いくと「<b>おぼえてうつ</b>」が かいほう！<br>すうじを おぼえて じかんないに うつ、ほんものの ほうしゅだ！</p>
+        <p>🔭 ランクが あがると てきが <b>ちいさく</b> なるよ。<b>ズーム</b>して しらべよう！</p>
+        <p>🏆 「でんせつ」まで いくと「<b>おぼえてうつ</b>」が かいほう！</p>
         <div class="tutorial-nav">
           <button id="tutorial-end-close">よし、やるぞ！</button>
+        </div>
+      </div>
+    </div>
+    <div id="rankup-overlay">
+      <div class="tutorial-card">
+        <div class="tutorial-icon" id="rankup-icon">⭐</div>
+        <h2 id="rankup-title"></h2>
+        <div id="rankup-body"></div>
+        <div class="tutorial-nav">
+          <button id="rankup-close">やってみる！</button>
         </div>
       </div>
     </div>
