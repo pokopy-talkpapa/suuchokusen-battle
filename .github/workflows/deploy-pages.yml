@@ -14,11 +14,13 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# ビルド（アーティファクト作成）とデプロイを別ジョブに分ける（GitHub公式の標準パターン）。
+# 1ジョブにまとめると、見張り役(retry-pages.yml)の `gh run rerun --failed` が
+# ビルドごとやり直してアーティファクトを毎回追加→「github-pages が複数」で永久に失敗する
+# 自己増殖ループに陥る（2026-07-06に発生）。分離すれば --failed は deploy だけを再実行し、
+# アーティファクトは1個のまま＝リトライしても増えない。
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +28,14 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-      # 失敗時の自動リトライは retry-pages.yml（見張り役）が担当。
-      # 実行中のワークフローは自分自身を rerun できないため、ここには置かない(2026-07-06に発覚)。
