@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.35'
+export const VERSION = 'v1.36'
 
 export const CONFIG = {
   RULER: {
@@ -67,6 +67,7 @@ export const CONFIG = {
       aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
       hitMargin: 45,
       enemyScale: 0.55,
+      enemySprite: 'ship-enemy',   // 昼＝海賊船（現行）
     },
     { // いっちょまえ：百十まで読む。射撃は百のまま＝内分。
       name: 'いっちょまえ砲手',
@@ -76,6 +77,7 @@ export const CONFIG = {
       aim: { tickStep: 100, zoomable: false, zoomTickStep: null },
       hitMargin: 28,
       enemyScale: 0.55,     // 序盤と同サイズ（大きい船が目盛りを隠すため統一・2026-07-04実機FB）
+      enemySprite: 'enemy-boat',   // 夕方＝小舟（船よりやや小さめ）
     },
     { // でんせつ：百十一まで読む。射撃はズーム後も百十まで（一の位は想像）。
       name: 'でんせつの砲手',
@@ -85,12 +87,21 @@ export const CONFIG = {
       aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
       hitMargin: 14,
       enemyScale: 0.55,     // 序盤と同サイズに統一（2026-07-04実機FB）
+      enemySprite: 'enemy-drone',  // 夜＝空とぶドローン（さらに小さく・空中）
     },
   ],
   ENEMY: {
     X_RATIO: 0.75,       // 敵船のCanvas X座標比率（0〜1）
-    SHIP_WIDTH: 104,     // 高さ113 × 0.92（旧140＝横伸びの原因）
+    SHIP_WIDTH: 104,     // 高さ113 × 0.92（旧140＝横伸びの原因）※SPRITES未定義時のフォールバック
     SHIP_HEIGHT: 113,
+    // ランク別の敵スプライト。w/h は各PNGのアスペクト比に合わせた基準サイズ（描画時に scale×camScale）。
+    // air は水平線から浮かせる高さ（Canvas高さ比・空とぶ敵用）。scale は船より小さくして「的が小さくなる」演出。
+    // sink は命中時の撃沈／墜落アニメの3コマ画像プレフィックス（sink-1/2/3・正方形タイル）。
+    SPRITES: {
+      'ship-enemy':  { w: 104, h: 113, scale: 0.55, air: 0,    sink: 'ship-sink'  }, // 海賊船（比1.07）
+      'enemy-boat':  { w: 104, h: 78,  scale: 0.50, air: 0,    sink: 'boat-sink'  }, // 小舟（比1.33・やや小さめ）
+      'enemy-drone': { w: 100, h: 79,  scale: 0.46, air: 0.07, sink: 'drone-sink' }, // ドローン（比1.27・空中に浮遊）
+    },
   },
   AIM_PANEL: {
     MARGIN_X: 130,       // 照準パネル数直線の左右マージンpx（パネルPNGの木の内側＝左右約12%の金具を避ける）

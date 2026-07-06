@@ -4,7 +4,10 @@ import { VERSION } from './config.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
-                     'stage-bg', 'aim-pov', 'title-bg', 'sea-open', 'ruler-img', 'island-cutout']
+                     'stage-bg', 'aim-pov', 'title-bg', 'sea-open', 'ruler-img', 'island-cutout',
+                     'enemy-boat', 'enemy-drone', 'sea-evening', 'sea-night',
+                     'boat-sink-1', 'boat-sink-2', 'boat-sink-3',
+                     'drone-sink-1', 'drone-sink-2', 'drone-sink-3']
 
 // 角丸長方形のパスを作る（古いSafari対策で arcTo 手書き）
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -65,9 +68,13 @@ export class Renderer {
     ctx.clearRect(0, 0, cv.width, cv.height)
 
     // 背景（フェーズで切替）：TITLE=タイトル / AIM=一人称POV / MEASURE・FIRE・RESULT=海。
+    // 海はランクの時間帯で本物の背景に差し替える（昼=sea-open / 夕方=sea-evening / 夜=sea-night）。
+    const seaBg = state.timeOfDay === 'evening' ? 'sea-evening'
+                : state.timeOfDay === 'night'   ? 'sea-night'
+                : 'sea-open'
     const bgName = (state.phase === 'TITLE') ? 'title-bg'
                  : (state.phase === 'AIM')   ? 'aim-pov'
-                 : 'sea-open'
+                 : seaBg
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
       if (seaView) {
@@ -244,44 +251,55 @@ export class Renderer {
         }
     }
 
-    // 敵船（RESULT＋命中時は沈むコマアニメ／通常は静止）
+    // 敵（RESULT＋命中時は撃沈／墜落アニメ／通常は静止）。ランクで敵が変わる：
+    // みならい=海賊船（昼）/ いっちょまえ=小舟（夕方）/ でんせつ=ドローン（夜・空中）。
     if (state.showShip) {
-      const scale = (CFG.STAGES[state.stageIndex] && CFG.STAGES[state.stageIndex].enemyScale) || 1
-      // ズームして見えている幅が狭いほど「船に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
+      const stg   = CFG.STAGES[state.stageIndex] || {}
+      const spriteName = stg.enemySprite || 'ship-enemy'
+      const meta  = (CFG.ENEMY.SPRITES && CFG.ENEMY.SPRITES[spriteName])
+                    || { w: CFG.ENEMY.SHIP_WIDTH, h: CFG.ENEMY.SHIP_HEIGHT, scale: stg.enemyScale || 1, air: 0 }
+      const scale = meta.scale
+      // ズームして見えている幅が狭いほど「敵に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
       // 全体(1000)=1倍・100窓(いっちょまえ/でんせつ1段目)=1.35倍・10窓(でんせつ2段目)=1.7倍、を
       // 対数スケールで滑らかに繋ぐ。1段目でもう大きすぎると2段目の伸びしろが無くなるため控えめに（2026-07-05実機FB）。
       const spanRatio = (CFG.RULER.MAX - CFG.RULER.MIN) / (state.zoomMax - state.zoomMin)
       const zoomLevel = Math.log10(Math.max(1, spanRatio)) // 全体=0・100窓=1・10窓=2
       const camScale = Math.min(1.7, 1 + zoomLevel * 0.35)
-      const shipW = CFG.ENEMY.SHIP_WIDTH  * scale * camScale
-      const shipH = CFG.ENEMY.SHIP_HEIGHT * scale * camScale
-      // 海の構図：船底が水平線（canvas上約55%）に乗るよう配置。
+      const shipW = meta.w * scale * camScale
+      const shipH = meta.h * scale * camScale
+      // 海の構図：敵底が水平線（canvas上約55%）に乗るよう配置。空とぶ敵（air>0）はそこから浮かせる。
       // 水平線Y = imgHorizon(53%) / crop(0.96) → 55.2% ≈ 0.552H
-      const centerY = seaView
-        ? Math.round(cv.height * 0.55 - shipH * 0.5)
+      const airLift = (meta.air || 0) * cv.height
+      const baseCenterY = seaView
+        ? Math.round(cv.height * 0.55 - shipH * 0.5)   // 水面基準（浮かせない位置）
         : rulerY - shipH / 2
+      const centerY = baseCenterY - airLift            // 静止時：空とぶ敵は水面から浮かせる
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
         const p = state.resultProgress
-        // 3コマ（傾く→半分沈む→ほぼ沈没）を進行度で切り替え
-        const name = p < 0.4 ? 'ship-sink-1' : (p < 0.75 ? 'ship-sink-2' : 'ship-sink-3')
+        // ランク別の撃沈／墜落アニメ（正方形3コマ：傾く/被弾→崩れる/落下→沈没/着水）。
+        const prefix = meta.sink || 'ship-sink'
+        const name = p < 0.4 ? `${prefix}-1` : (p < 0.75 ? `${prefix}-2` : `${prefix}-3`)
         const img  = this._imgs[name]
-        const dW = shipW * 1.9, dH = shipH * 1.9   // 正方コマ（船＋煙＋水しぶきを含む）
+        // コマは正方形タイルなので正方形のまま描く（横伸び防止）。船と同じく1.9倍で煙・しぶきまで収める。
+        const dSize = Math.max(shipW, shipH) * 1.9
+        // 空とぶ敵（ドローン）は撃たれると浮遊位置から水面へ落下：進行に従い airLift を抜いていく。
+        const sinkCenterY = baseCenterY - airLift * (1 - p)
         const alpha = p > 0.85 ? Math.max(0, 1 - (p - 0.85) / 0.15) : 1
         ctx.save()
         ctx.globalAlpha = alpha
         if (img) {
-          // 喫水線が数直線あたりに来るよう少し下げて配置
-          ctx.drawImage(img, state.enemyX - dW / 2, centerY - dH / 2 + shipH * 0.2, dW, dH)
+          // 喫水線（コマ下部の水しぶき）が水平線あたりに来るよう少し下げて配置
+          ctx.drawImage(img, state.enemyX - dSize / 2, sinkCenterY - dSize / 2 + shipH * 0.2, dSize, dSize)
         } else {
-          ctx.translate(state.enemyX, centerY + p * (shipH + 50))
+          ctx.translate(state.enemyX, sinkCenterY + p * (shipH + 50))
           ctx.rotate(p * 1.0)
           ctx.fillStyle = '#8b0000'
           ctx.fillRect(-shipW / 2, -shipH / 2, shipW, shipH)
         }
         ctx.restore()
-      } else if (this._imgs['ship-enemy']) {
-        ctx.drawImage(this._imgs['ship-enemy'], state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
+      } else if (this._imgs[spriteName]) {
+        ctx.drawImage(this._imgs[spriteName], state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
       } else {
         ctx.fillStyle = '#8b0000'
         ctx.fillRect(state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
@@ -662,6 +680,10 @@ export class Renderer {
   _drawTimeOfDay(state) {
     const tod = state.timeOfDay
     if (tod !== 'evening' && tod !== 'night') return
+    // 海の構図（MEASURE/FIRE/RESULT）は時間帯そのものの背景画像（sea-evening / sea-night）に
+    // 差し替え済み。色かぶせを重ねると二重に暗くなり、夜は月が二つ描かれてしまうので海ではかけない。
+    // 一人称の砦（AIM）だけは背景が固定画像なので、ここで時間帯の色を薄くかぶせて雰囲気を合わせる。
+    if (state.phase !== 'AIM') return
     const ctx = this._ctx
     const cv  = this._canvas
     ctx.save()
