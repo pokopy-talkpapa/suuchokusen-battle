@@ -166,6 +166,10 @@ export class Renderer {
       ctx.drawImage(img, iX, iY, iW, iH)
     }
 
+    // 時間帯の色かぶせ（ランク演出）：背景・島だけを染め、この後に描く数直線・船・
+    // パネル・文字は昼のまま＝夜でも読みやすい（数直線が暗くて見にくい実機FB 2026-07-06）。
+    this._drawTimeOfDay(state)
+
     // 数直線。AIM は手元パネルが別の数直線を持つので主数直線は描かない。
     // MEASURE も含め全フェーズ共通で Canvas 動的描画にする（ズーム中の目盛りの伸び縮みをそのまま見せるため）。
     // 静止画（ruler-img）は「今の窓（zoomMin〜zoomMax）」を反映できず、部屋ズームしても絵が変わらない
@@ -283,10 +287,6 @@ export class Renderer {
         ctx.fillRect(state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
       }
     }
-
-    // 時間帯の色かぶせ（ランク演出）：ここまでに描いた景色（背景・島・数直線・船）を
-    // まとめて夕方/夜の色に染める。この後に描くパネル・ボタン・文字は昼のまま＝読みやすさ優先。
-    this._drawTimeOfDay(state)
 
     // ── 射撃フェーズ（一人称 aim-pov 背景の上に手元の照準パネルを置く） ──
     if (state.phase === 'AIM' && state.aim) {
@@ -667,20 +667,26 @@ export class Renderer {
     ctx.save()
 
     if (tod === 'evening') {
-      // 夕方：全体をあたたかい橙に傾け、水平線ぎわに夕焼けの照り返しを足す
+      // 夕方＝黄昏時：上空は藤色に暮れて、水平線に近づくほど夕焼けの橙〜金色。
+      // 水平線ぎわに夕日の照り返しの帯を重ねて「日が沈みかけている」感を出す。
       ctx.globalCompositeOperation = 'multiply'
       const g = ctx.createLinearGradient(0, 0, 0, cv.height)
-      g.addColorStop(0,   'rgb(255, 170, 115)')
-      g.addColorStop(0.5, 'rgb(255, 200, 150)')
-      g.addColorStop(1,   'rgb(255, 215, 175)')
+      g.addColorStop(0,    'rgb(175, 130, 195)')  // 藤色の宵空
+      g.addColorStop(0.30, 'rgb(255, 150, 105)')  // 燃える夕焼け
+      g.addColorStop(0.52, 'rgb(255, 205, 125)')  // 水平線ぎわの金色
+      g.addColorStop(0.70, 'rgb(230, 150, 120)')  // 夕日を映す海
+      g.addColorStop(1,    'rgb(205, 135, 135)')
       ctx.fillStyle = g
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.globalCompositeOperation = 'source-over'
-      const glow = ctx.createLinearGradient(0, cv.height * 0.35, 0, cv.height * 0.62)
-      glow.addColorStop(0, 'rgba(255, 140, 60, 0)')
-      glow.addColorStop(1, 'rgba(255, 120, 40, 0.22)')
+      // 水平線の照り返し（上下対称のグロー帯）
+      const hy = cv.height * 0.53
+      const glow = ctx.createLinearGradient(0, hy - cv.height * 0.16, 0, hy + cv.height * 0.12)
+      glow.addColorStop(0,   'rgba(255, 150, 50, 0)')
+      glow.addColorStop(0.55, 'rgba(255, 130, 45, 0.30)')
+      glow.addColorStop(1,   'rgba(255, 150, 50, 0)')
       ctx.fillStyle = glow
-      ctx.fillRect(0, cv.height * 0.35, cv.width, cv.height * 0.27)
+      ctx.fillRect(0, hy - cv.height * 0.16, cv.width, cv.height * 0.28)
     } else {
       // 夜：全体を青く沈めて、星と月を出す
       ctx.globalCompositeOperation = 'multiply'
