@@ -172,8 +172,10 @@ export class Renderer {
     // ＝ズームした実感が出ない原因になっていたため MEASURE 専用の分岐は廃止（2026-07-05）。
     if (state.phase !== 'AIM') {
       const ticks = getTicks(state.zoomMin, state.zoomMax, state.tickStep)
+        // 夜（でんせつ）は空が暗くなるので、数直線は焦げ茶→生成り色に切り替えて読めるようにする
+        const rulerColor = state.timeOfDay === 'night' ? '#f2ead6' : '#3C2415'
 
-        ctx.strokeStyle = '#3C2415'
+        ctx.strokeStyle = rulerColor
         ctx.lineWidth = 4
         ctx.beginPath()
         ctx.moveTo(rsx, rulerY)
@@ -184,7 +186,7 @@ export class Renderer {
         ticks.forEach(({ value, isMajor }) => {
           const x  = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
           const tH = isMajor ? 22 : 12
-          ctx.strokeStyle = '#3C2415'
+          ctx.strokeStyle = rulerColor
           ctx.lineWidth = isMajor ? 3 : 2
           ctx.beginPath()
           ctx.moveTo(x, rulerY - tH / 2)
@@ -194,7 +196,7 @@ export class Renderer {
 
         ;[state.zoomMin, state.zoomMax].forEach((value) => {
           const x = valueToX(value, state.zoomMin, state.zoomMax, rsx, rex)
-          ctx.strokeStyle = '#3C2415'
+          ctx.strokeStyle = rulerColor
           ctx.lineWidth = 5
           ctx.beginPath()
           ctx.moveTo(x, rulerY - 30)
@@ -232,7 +234,7 @@ export class Renderer {
             ctx.lineWidth = 6
             ctx.strokeStyle = 'rgba(255,255,255,0.95)'
             ctx.strokeText(String(value), lx, rulerY - 36)
-            ctx.fillStyle = '#3C2415'
+            ctx.fillStyle = '#3C2415' // 白フチ＋濃色は夜の空でもそのまま読める
             ctx.fillText(String(value), lx, rulerY - 36)
           })
         }
@@ -281,6 +283,10 @@ export class Renderer {
         ctx.fillRect(state.enemyX - shipW / 2, centerY - shipH / 2, shipW, shipH)
       }
     }
+
+    // 時間帯の色かぶせ（ランク演出）：ここまでに描いた景色（背景・島・数直線・船）を
+    // まとめて夕方/夜の色に染める。この後に描くパネル・ボタン・文字は昼のまま＝読みやすさ優先。
+    this._drawTimeOfDay(state)
 
     // ── 射撃フェーズ（一人称 aim-pov 背景の上に手元の照準パネルを置く） ──
     if (state.phase === 'AIM' && state.aim) {
@@ -648,6 +654,65 @@ export class Renderer {
     ctx.fillStyle = '#3C2415'
     ctx.textAlign = 'center'
     ctx.fillText(guide.text, bx + w / 2, by + 32)
+    ctx.restore()
+  }
+
+  // ランクで時間帯が進む演出（みならい=昼／いっちょまえ=夕方／でんせつ=夜）。
+  // multiply合成で景色全体を染めるので、絵の輪郭やディテールはそのまま残る。
+  _drawTimeOfDay(state) {
+    const tod = state.timeOfDay
+    if (tod !== 'evening' && tod !== 'night') return
+    const ctx = this._ctx
+    const cv  = this._canvas
+    ctx.save()
+
+    if (tod === 'evening') {
+      // 夕方：全体をあたたかい橙に傾け、水平線ぎわに夕焼けの照り返しを足す
+      ctx.globalCompositeOperation = 'multiply'
+      const g = ctx.createLinearGradient(0, 0, 0, cv.height)
+      g.addColorStop(0,   'rgb(255, 170, 115)')
+      g.addColorStop(0.5, 'rgb(255, 200, 150)')
+      g.addColorStop(1,   'rgb(255, 215, 175)')
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, cv.width, cv.height)
+      ctx.globalCompositeOperation = 'source-over'
+      const glow = ctx.createLinearGradient(0, cv.height * 0.35, 0, cv.height * 0.62)
+      glow.addColorStop(0, 'rgba(255, 140, 60, 0)')
+      glow.addColorStop(1, 'rgba(255, 120, 40, 0.22)')
+      ctx.fillStyle = glow
+      ctx.fillRect(0, cv.height * 0.35, cv.width, cv.height * 0.27)
+    } else {
+      // 夜：全体を青く沈めて、星と月を出す
+      ctx.globalCompositeOperation = 'multiply'
+      const g = ctx.createLinearGradient(0, 0, 0, cv.height)
+      g.addColorStop(0,   'rgb(80, 95, 155)')
+      g.addColorStop(0.55, 'rgb(105, 120, 175)')
+      g.addColorStop(1,   'rgb(90, 105, 160)')
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, cv.width, cv.height)
+      ctx.globalCompositeOperation = 'source-over'
+      // 星と月は空が見えている海の画面だけ（AIMは砦の中＝壁に月が浮いて見えてしまう）
+      if (state.phase === 'AIM') { ctx.restore(); return }
+      // 星（位置は固定・またたきだけ時間で揺らす）。空＝画面上部30%に散らす
+      const t = performance.now() / 1000
+      for (let i = 0; i < 26; i++) {
+        const x = ((i * 137.508) % 97) / 97 * cv.width
+        const y = ((i * 61.803) % 89) / 89 * cv.height * 0.3
+        const tw = 0.35 + 0.45 * Math.abs(Math.sin(t * 1.3 + i * 2.1))
+        ctx.fillStyle = `rgba(255, 250, 220, ${tw})`
+        const r = 1.5 + (i % 3) * 0.8
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
+      }
+      // 月（右上）：ほんのり光る満月
+      const mx = cv.width * 0.84, my = cv.height * 0.13, mr = 30
+      const halo = ctx.createRadialGradient(mx, my, mr * 0.5, mx, my, mr * 3)
+      halo.addColorStop(0, 'rgba(255, 250, 210, 0.35)')
+      halo.addColorStop(1, 'rgba(255, 250, 210, 0)')
+      ctx.fillStyle = halo
+      ctx.beginPath(); ctx.arc(mx, my, mr * 3, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = '#fdf6d8'
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill()
+    }
     ctx.restore()
   }
 
