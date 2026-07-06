@@ -151,7 +151,7 @@ class Game {
     this._startMeasure()
   }
 
-  _resetButtonRect() { return { x: 14, y: this._canvas.height - 58, w: 210, h: 44 } }
+  _resetButtonRect() { return this._titleLayout().resetRect }
 
   // おぼえてうつ解放条件＝でんせつランク（maxLevel 3）に到達済み（2026-07-05 ぽこぴぃ確定）
   _isExpertUnlocked() { return this._unlock.maxLevel >= 3 }
@@ -177,36 +177,62 @@ class Game {
     return Math.max(1, Math.min(this._playLevel ?? max, max))
   }
 
-  // タイトルのランク選択チップ3つの矩形（モードボタンの下・中央寄せ）
-  _rankChipRects() {
-    const cv = this._canvas
-    const mb = this._modeButtonRects()
-    const w = Math.min(176, cv.width * 0.24), h = 46, gap = 12
-    const x0 = cv.width / 2 - (w * 3 + gap * 2) / 2
-    const y  = mb.beginner.y + mb.beginner.h + 18
-    return [0, 1, 2].map(i => ({ x: x0 + i * (w + gap), y, w, h }))
-  }
+  // タイトルのランク選択チップ3つの矩形（_titleLayout 参照・単一の真実）
+  _rankChipRects() { return this._titleLayout().chips }
 
-  // モード選択の2ボタン矩形（renderer の drawBtn と同じ式・単一の真実にするため共有計算）
-  _modeButtonRects() {
-    const cv = this._canvas
-    const bw = Math.min(280, cv.width * 0.38)
-    const bh = 124
-    const by = cv.height * 0.55 - bh / 2
-    const cx1 = cv.width * 0.27
-    const cx2 = cv.width * 0.73
-    return {
+  // モード選択の2ボタン矩形（_titleLayout 参照・単一の真実）
+  _modeButtonRects() { return this._titleLayout().modeBtns }
+
+  // 音ON/OFFボタン（右下・TITLEとMEASUREに表示）。矩形は _titleLayout 参照・単一の真実。
+  _soundButtonRects() { return this._titleLayout().soundRects }
+
+  // タイトル画面の全要素を上から積み上げて配置する（単一の真実）。
+  // 高さ720pxを基準に s=0.55〜1 でスケールし、狭い高さ（スマホ横）でも全体を縮めて重なりを防ぐ。
+  // 積み上げた内容が画面に収まりきる余白があるときは、その分だけ全体を下へオフセットして
+  // 縦方向中央寄りに見せる（背の高い画面で要素が上端に張り付くのを防ぐ）。
+  _titleLayout() {
+    const cv = this._canvas, W = cv.width, H = cv.height
+    const s = Math.max(0.55, Math.min(1, H / 720))
+
+    // 上から積み上げた「詰めた場合」の自然な位置（オフセット0）
+    const naturalTitleY   = 64 * s   // タイトル文字のベースライン
+    // モードボタンの上端。初回ガイドの吹き出し（renderer._drawGuide、ボタン中心の128px上に
+    // 固定pxで描く・スケール対象外）がタイトル文字と衝突しない余白を確保するため、
+    // タイトルとの間を広めに取る。
+    const naturalButtonsY = 170 * s
+    const bh = 124 * s
+    const bw = Math.min(280 * s, W * 0.38)
+    const naturalChipsY = naturalButtonsY + bh + 16 * s
+    const chipH = 46 * s
+    const naturalBestY  = naturalChipsY + chipH + 26 * s // じこベスト行のベースライン
+    const naturalContentBottom = naturalBestY + 10 * s
+
+    const bottomBarH = 44 * s
+    const bottomBarY = H - 58 * s
+    const availableBottom = bottomBarY - 14 * s // 下段バーとの最低すき間
+
+    const offset = Math.max(0, (availableBottom - naturalContentBottom) / 2)
+
+    const titleY = naturalTitleY + offset
+    const by     = naturalButtonsY + offset
+    const chipY  = naturalChipsY + offset
+    const bestY  = naturalBestY + offset
+
+    const cx1 = W * 0.27, cx2 = W * 0.73
+    const modeBtns = {
       beginner: { x: cx1 - bw / 2, y: by, w: bw, h: bh },
       expert:   { x: cx2 - bw / 2, y: by, w: bw, h: bh },
     }
-  }
 
-  // 音ON/OFFボタン（右下・TITLEとMEASUREに表示）。矩形は renderer と共有＝単一の真実。
-  _soundButtonRects() {
-    const cv = this._canvas
-    const bgm = { x: cv.width - 14 - 110, y: cv.height - 58, w: 110, h: 44 }
-    const sfx = { x: bgm.x - 10 - 110,    y: cv.height - 58, w: 110, h: 44 }
-    return { sfx, bgm }
+    const chipW = Math.min(176 * s, W * 0.24), chipGap = 12 * s
+    const x0 = W / 2 - (chipW * 3 + chipGap * 2) / 2
+    const chips = [0, 1, 2].map(i => ({ x: x0 + i * (chipW + chipGap), y: chipY, w: chipW, h: chipH }))
+
+    const resetRect = { x: 14 * s, y: bottomBarY, w: 210 * s, h: bottomBarH }
+    const bgmRect   = { x: W - 14 * s - 110 * s,      y: bottomBarY, w: 110 * s, h: bottomBarH }
+    const sfxRect   = { x: bgmRect.x - 10 * s - 110 * s, y: bottomBarY, w: 110 * s, h: bottomBarH }
+
+    return { s, titleY, modeBtns, chips, bestY, resetRect, soundRects: { sfx: sfxRect, bgm: bgmRect } }
   }
 
   // 音ボタンのタップ判定（TITLEのみ）。押していたら true を返す。
@@ -260,6 +286,8 @@ class Game {
 
     const panelGeom = this._panelGeom()
     const aimState  = (this._phase === 'AIM') ? this._aimInput.getState() : null
+    // タイトル画面の全矩形の単一の真実。1フレームにつき1回だけ計算し、下の各フィールドで使い回す。
+    const titleLayout = this._phase === 'TITLE' ? this._titleLayout() : null
 
     return {
       phase:          this._phase,
@@ -319,19 +347,21 @@ class Game {
       zoomOutButtonRect: (this._phase === 'MEASURE' && this._canZoomOut()) ? this._zoomOutButtonRect() : null,
       // 初回プレイの操作ガイド吹き出し（対象座標＋文言）。非ガイド時は null。
       guide:           this._guideCallout(),
-      resetButton:     this._phase === 'TITLE'
-                         ? { rect: this._resetButtonRect(), confirm: this._resetConfirm } : null,
+      // タイトル画面の積み上げレイアウト（renderer はこれだけを見て描画・自前の再計算はしない）
+      titleLayout,
+      resetButton:     titleLayout
+                         ? { rect: titleLayout.resetRect, confirm: this._resetConfirm } : null,
       // ランク選択チップ（タイトルのみ）：解放済みはタップで切替・未解放は🔒表示
-      rankChips:       this._phase === 'TITLE'
-                         ? { rects: this._rankChipRects(),
+      rankChips:       titleLayout
+                         ? { rects: titleLayout.chips,
                              selected: this._effectiveLevel(),
                              maxLevel: this._unlock.maxLevel } : null,
       // おぼえてうつ（じかん制限で記憶して撃つ）は「よんでうつ」ででんせつランクに到達してから解放。
       // 読まずに記憶頼みで進めるのを防ぐため、まず読む力を一定水準まで育ててから開放する順にする。
       expertLocked:    !this._isExpertUnlocked(),
       // 音ボタンはTITLEのみ（MEASUREは右下にテンキーDOMが重なる）。プレイ中の消音は「もどる」経由。
-      soundButtons:    this._phase === 'TITLE'
-                         ? { rects: this._soundButtonRects(),
+      soundButtons:    titleLayout
+                         ? { rects: titleLayout.soundRects,
                              sfxOn: this._audio.sfxOn, bgmOn: this._audio.bgmOn } : null,
       rulerGeom:       { rsx, rex },
       // ズーム遷移中のみ非null。端の数字クロスフェード＆数直線の強調演出に使う。
@@ -403,8 +433,11 @@ class Game {
     // タイトル画面：ようこそカードを閉じたら「よんでうつ」ボタンへ誘導
     if (this._phase === 'TITLE') {
       if (!this._tutorial.shouldGuide() || this._tutorial.isOpen()) return null
-      const b = this._modeButtonRects().beginner
-      return { x: b.x + b.w / 2, y: b.y + b.h / 2, ring: b, text: 'ここを タップで スタート！' }
+      const tl = this._titleLayout()
+      const b = tl.modeBtns.beginner
+      // 吹き出し自体も s でスケール：狭い高さではタイトルとボタンの間隔も縮むため、
+      // 吹き出しの見た目（固定pxのまま）だとタイトルに食い込む。
+      return { x: b.x + b.w / 2, y: b.y + b.h / 2, ring: b, text: 'ここを タップで スタート！', scale: tl.s }
     }
     if (!this._guide) return null
     if (this._guide === 'measure' && this._phase === 'MEASURE') {
