@@ -212,7 +212,9 @@ class Game {
     const half = Math.min(W * 0.23, 320)
 
     // ランクチップ：3つとも同幅（いちばん長いラベルに合わせる）。🔒表示のほうが長い場合も考慮
-    const chipLabels       = ['☀️ みならい', '🌇 いっちょまえ', '🌙 でんせつ']
+    // ☀️(U+2600+FE0F)はiOS Safariのcanvasで幅計算がずれて文字が右に流れる（2026-07-07実機FB）。
+    // 修飾コードなしの1文字絵文字🌞に固定する。ここに新しい絵文字を足すときも1文字ものを選ぶこと
+    const chipLabels       = ['🌞 みならい', '🌇 いっちょまえ', '🌙 でんせつ']
     const chipLockedLabels = ['🔒 みならい', '🔒 いっちょまえ', '🔒 でんせつ']
     ctx.font = `bold ${fonts.chip}px sans-serif`
     let chipTextW = 0
