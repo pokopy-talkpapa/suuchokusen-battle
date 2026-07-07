@@ -80,6 +80,13 @@ export class Renderer {
       if (seaView) {
         // sea-open.pngの水平線は画像高さ約53%。crop=0.96なら canvas上53/96≈55%に来る
         ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.96, 0, 0, cv.width, cv.height)
+      } else if (state.phase === 'TITLE') {
+        // タイトル背景はアスペクト比を保って cover（はみ出す側を中央クロップ）。
+        // 引き伸ばすと超横長の画面で絵が歪むため
+        const k = Math.max(cv.width / bgImg.width, cv.height / bgImg.height)
+        const sw = cv.width / k, sh = cv.height / k
+        ctx.drawImage(bgImg, (bgImg.width - sw) / 2, (bgImg.height - sh) / 2, sw, sh,
+                      0, 0, cv.width, cv.height)
       } else {
         ctx.drawImage(bgImg, 0, 0, cv.width, cv.height)
       }
@@ -93,46 +100,60 @@ export class Renderer {
     }
 
     // タイトル画面：モードを大きな2ボタンで選ぶ（取り違え防止）
-    if (state.phase === 'TITLE') {
+    // 位置・サイズ・フォントはすべて state.titleLayout（game.js の _titleLayout が単一の真実）に従う。
+    // ここでは再計算せず rect を読むだけ。文字は必ず fitFont で枠内に収める＝はみ出しゼロの保証。
+    if (state.phase === 'TITLE' && state.titleLayout) {
+      const tl = state.titleLayout
+      const s  = tl.s
+      // 指定幅に収まるフォントサイズへ縮めて ctx.font にセットする（収まればそのまま）
+      const fitFont = (text, px, maxW, bold = true) => {
+        let f = px
+        ctx.font = `${bold ? 'bold ' : ''}${f}px sans-serif`
+        const w = ctx.measureText(text).width
+        if (w > maxW) {
+          f = Math.max(10, Math.floor(f * maxW / w))
+          ctx.font = `${bold ? 'bold ' : ''}${f}px sans-serif`
+        }
+        return f
+      }
+      // 枠の中央に1行テキスト（ベースラインは枠の高さから導出＝手合わせの数値ずれをなくす）
+      const centerText = (text, r, px, bold = true) => {
+        const f = fitFont(text, px, r.w - 12, bold)
+        ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2 + f * 0.35)
+      }
+
       // title-bg のキービジュアルを活かすため暗幕は薄め。文字の可読性はテキスト側のフチで確保。
       ctx.fillStyle = 'rgba(0,0,0,0.28)'
       ctx.fillRect(0, 0, cv.width, cv.height)
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffdd00'
-      ctx.font = 'bold 42px sans-serif'
-      ctx.fillText('めざせ！すうちょくせんマスター', cv.width / 2, 72)
-      ctx.fillStyle = '#fff'
-      ctx.font = '22px sans-serif'
-      ctx.fillText('モードを えらんでね', cv.width / 2, 112)
+      fitFont('めざせ！すうちょくせんマスター', tl.fonts.title, cv.width * 0.92)
+      ctx.fillText('めざせ！すうちょくせんマスター', cv.width / 2, tl.titleY)
 
-      const bw = Math.min(280, cv.width * 0.38)
-      const bh = 124
-      const by = cv.height * 0.55 - bh / 2
-      const drawBtn = (cx, color, title, sub) => {
-        const x = cx - bw / 2
+      const drawBtn = (r, color, title, sub) => {
+        const cx = r.x + r.w / 2
         ctx.fillStyle = color
-        roundRectPath(ctx, x, by, bw, bh, 22)
+        roundRectPath(ctx, r.x, r.y, r.w, r.h, 22 * s)
         ctx.fill()
         ctx.fillStyle = '#fff'
-        ctx.font = 'bold 32px sans-serif'
-        ctx.fillText(title, cx, by + 54)
-        ctx.font = '18px sans-serif'
-        ctx.fillText(sub, cx, by + 90)
+        fitFont(title, tl.fonts.btnTitle, r.w - 20)
+        ctx.fillText(title, cx, r.y + r.h * 0.44)
+        fitFont(sub, tl.fonts.btnSub, r.w - 16, false)
+        ctx.fillText(sub, cx, r.y + r.h * 0.76)
       }
       // モード＝入力のしかたの違いだけ（難易度はランクが決める）
-      drawBtn(cv.width * 0.27, '#2e8b57', 'よんでうつ', 'テンキーで かきとめる')
+      drawBtn(tl.modeBtns.beginner, '#2e8b57', 'よんでうつ', 'テンキーで かきとめる')
       // おぼえてうつ＝でんせつランク到達まで灰色でロック（色と鍵アイコンで伝える・文字を増やさない）
       if (state.expertLocked) {
-        drawBtn(cv.width * 0.73, '#5a5a5a', 'おぼえてうつ', '🔒 でんせつで かいほう')
+        drawBtn(tl.modeBtns.expert, '#5a5a5a', 'おぼえてうつ', '🔒 でんせつで かいほう')
       } else {
-        drawBtn(cv.width * 0.73, '#c0531f', 'おぼえてうつ', 'じかんせいげんで きおく')
+        drawBtn(tl.modeBtns.expert, '#c0531f', 'おぼえてうつ', 'じかんせいげんで きおく')
       }
 
       // ランク選択チップ（ボタンの下）：解放済みならタップでいつでも戻れる／進める。
       // 「難しかったら1個戻る」「苦手な段を練習する」を子ども自身が選べるようにする。
       if (state.rankChips) {
         const { rects, selected, maxLevel } = state.rankChips
-        const labels = ['☀️ みならい', '🌇 いっちょまえ', '🌙 でんせつ']
         rects.forEach((r, i) => {
           const lvl = i + 1
           const unlocked = lvl <= maxLevel
@@ -143,22 +164,22 @@ export class Renderer {
           roundRectPath(ctx, r.x, r.y, r.w, r.h, 12)
           ctx.fill()
           if (isSel) {
+            // 選択枠は矩形の内側に描く＝隣のチップと接して見えるのを防ぐ
             ctx.lineWidth = 4
             ctx.strokeStyle = '#ffdd00'
-            roundRectPath(ctx, r.x, r.y, r.w, r.h, 12)
+            roundRectPath(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, 10)
             ctx.stroke()
           }
-          ctx.font = 'bold 17px sans-serif'
           ctx.textAlign = 'center'
           ctx.fillStyle = unlocked ? '#ffffff' : 'rgba(255,255,255,0.45)'
-          const label = unlocked ? labels[i] : '🔒 ' + labels[i].replace(/^\S+ /, '')
-          ctx.fillText(label, r.x + r.w / 2, r.y + 30)
+          const label = unlocked ? tl.chipLabels[i] : tl.chipLockedLabels[i]
+          centerText(label, r, tl.fonts.chip)
         })
-        // 自己ベスト（チップの下）
+        // 自己ベスト（チップ行の下に1行だけ・0点のときは出さない）
         if (state.score && state.score.best > 0) {
-          ctx.font = 'bold 18px sans-serif'
+          ctx.font = `bold ${tl.fonts.best}px sans-serif`
           ctx.fillStyle = '#ffdd00'
-          ctx.fillText(`じこベスト ${state.score.best}てん`, cv.width / 2, rects[0].y + rects[0].h + 28)
+          ctx.fillText(`じこベスト ${state.score.best}てん`, cv.width / 2, tl.bestY)
         }
       }
 
@@ -168,18 +189,16 @@ export class Renderer {
         ctx.fillStyle = confirm ? 'rgba(170,30,30,0.9)' : 'rgba(0,0,0,0.5)'
         roundRectPath(ctx, rb.x, rb.y, rb.w, rb.h, 10)
         ctx.fill()
-        ctx.font = 'bold 17px sans-serif'
         ctx.textAlign = 'center'
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(confirm ? 'ほんとうに もどす？' : 'ランクを さいしょから',
-                     rb.x + rb.w / 2, rb.y + 28)
+        centerText(confirm ? 'ほんとうに もどす？' : 'ランクを さいしょから', rb, tl.fonts.bottom)
       }
 
-      // バージョン番号（右下）
-      ctx.font = '16px sans-serif'
+      // バージョン番号（右下最小・きょくボタンの右横＝レイアウト側が場所を空けている）
+      ctx.font = `${tl.fonts.version}px sans-serif`
       ctx.textAlign = 'right'
       ctx.fillStyle = 'rgba(255,255,255,0.6)'
-      ctx.fillText(VERSION, cv.width - 14, cv.height - 12)
+      ctx.fillText(VERSION, tl.versionPos.x, tl.versionPos.y)
       this._drawSoundButtons(state)
       if (state.guide) this._drawGuide(state.guide) // 初回：「よんでうつ」への誘導
       return
@@ -660,24 +679,30 @@ export class Renderer {
     const t = performance.now() / 1000
     ctx.save()
 
+    // guide.scale はタイトル画面のみ渡される（_titleLayout の s）。狭い高さでは
+    // タイトルとボタンの間隔も縮むため、吹き出しを固定pxのままにするとタイトルに食い込む。
+    // 文字サイズには下限を設けて読めなくならないようにする。
+    const gs = guide.scale || 1
+    const guideFont = Math.max(15, Math.round(24 * gs))
+
     if (guide.ring) {
-      const pulse = 4 + Math.sin(t * 5) * 3
+      const pulse = (4 + Math.sin(t * 5) * 3) * gs
       const r = guide.ring
       ctx.strokeStyle = '#ffdd00'
-      ctx.lineWidth = 5
-      roundRectPath(ctx, r.x - pulse, r.y - pulse, r.w + pulse * 2, r.h + pulse * 2, 14)
+      ctx.lineWidth = 5 * gs
+      roundRectPath(ctx, r.x - pulse, r.y - pulse, r.w + pulse * 2, r.h + pulse * 2, 14 * gs)
       ctx.stroke()
     }
 
-    ctx.font = 'bold 24px sans-serif'
-    const pad = 16
+    ctx.font = `bold ${guideFont}px sans-serif`
+    const pad = 16 * gs
     const w = ctx.measureText(guide.text).width + pad * 2
-    const h = 48
-    const bounce = Math.sin(t * 3.5) * 7
+    const h = guideFont * 2
+    const bounce = Math.sin(t * 3.5) * 7 * gs
     let bx = guide.x - w / 2
     bx = Math.max(10, Math.min(cv.width - w - 10, bx)) // 画面からはみ出さない
-    const tailH = 16
-    const by = guide.y - 64 - h - tailH + bounce
+    const tailH = 16 * gs
+    const by = guide.y - 64 * gs - h - tailH + bounce
 
     // しっぽ（▼）→ 本体の順に塗ってから、輪郭をまとめて描く
     ctx.fillStyle = '#fffbe8'
@@ -685,19 +710,19 @@ export class Renderer {
     ctx.lineWidth = 3
     roundRectPath(ctx, bx, by, w, h, 12)
     ctx.fill(); ctx.stroke()
-    const tailX = Math.max(bx + 20, Math.min(bx + w - 20, guide.x))
+    const tailX = Math.max(bx + 20 * gs, Math.min(bx + w - 20 * gs, guide.x))
     ctx.beginPath()
-    ctx.moveTo(tailX - 11, by + h - 1)
-    ctx.lineTo(tailX + 11, by + h - 1)
+    ctx.moveTo(tailX - 11 * gs, by + h - 1)
+    ctx.lineTo(tailX + 11 * gs, by + h - 1)
     ctx.lineTo(tailX, by + h + tailH)
     ctx.closePath()
     ctx.fill(); ctx.stroke()
     // しっぽと本体の境目の線を消す（同色で上塗り）
-    ctx.fillRect(tailX - 9, by + h - 3, 18, 4)
+    ctx.fillRect(tailX - 9 * gs, by + h - 3, 18 * gs, 4)
 
     ctx.fillStyle = '#3C2415'
     ctx.textAlign = 'center'
-    ctx.fillText(guide.text, bx + w / 2, by + 32)
+    ctx.fillText(guide.text, bx + w / 2, by + h / 2 + guideFont * 0.35)
     ctx.restore()
   }
 
@@ -775,15 +800,17 @@ export class Renderer {
     if (!state.soundButtons) return
     const ctx = this._ctx
     const { rects, sfxOn, bgmOn } = state.soundButtons
+    // フォントは titleLayout（矩形と同じ単一の真実）から。ベースラインは枠の高さから導出
+    const fontSize = state.titleLayout ? state.titleLayout.fonts.bottom : 17
     const drawToggle = (r, on, label) => {
       ctx.save()
       ctx.fillStyle = on ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.7)'
       roundRectPath(ctx, r.x, r.y, r.w, r.h, 10)
       ctx.fill()
-      ctx.font = 'bold 17px sans-serif'
+      ctx.font = `bold ${fontSize}px sans-serif`
       ctx.textAlign = 'center'
       ctx.fillStyle = on ? '#ffffff' : 'rgba(255,255,255,0.45)'
-      ctx.fillText(label, r.x + r.w / 2, r.y + 28)
+      ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 + fontSize * 0.35)
       ctx.restore()
     }
     drawToggle(rects.sfx, sfxOn, sfxOn ? '🔊 おと' : '🔇 おと')
