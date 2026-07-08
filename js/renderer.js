@@ -483,6 +483,53 @@ export class Renderer {
         ctx.arc(state.landingX, splashY, 22, 0, Math.PI * 2)
         ctx.fill()
       }
+
+      // ねらい（旗＝正解の位置）と着弾を数直線上に並べる（③）：
+      // 水しぶきから数直線へ点線を立ち上げ、旗とのずれを帯で見せる＝測量→ブレの因果を言葉ゼロで。
+      {
+        // 着弾の垂線（水面→数直線）と数直線上の着弾点
+        ctx.save()
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+        ctx.lineWidth = 3
+        ctx.setLineDash([7, 6])
+        ctx.beginPath()
+        ctx.moveTo(state.landingX, splashY - 8)
+        ctx.lineTo(state.landingX, rulerY)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = '#4488ff'
+        ctx.beginPath()
+        ctx.arc(state.landingX, rulerY, 8, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.lineWidth = 2
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+        ctx.stroke()
+
+        // ずれの帯（旗と着弾の間）。命中はほぼ幅ゼロ＝出ないのが正しい
+        const fx = state.enemyX
+        const bx1 = Math.min(fx, state.landingX), bx2 = Math.max(fx, state.landingX)
+        if (bx2 - bx1 > 4) {
+          ctx.fillStyle = state.hitResult === 'HIT' ? 'rgba(90,220,120,0.35)' : 'rgba(255,80,60,0.35)'
+          ctx.fillRect(bx1, rulerY - 7, bx2 - bx1, 14)
+        }
+
+        // 旗（ねらうべき場所＝正解値の真上）。ロゴ色のオレンジ＋こげ茶の棒
+        const poleH = 46
+        ctx.strokeStyle = '#3C2415'
+        ctx.lineWidth = 4
+        ctx.beginPath()
+        ctx.moveTo(fx, rulerY)
+        ctx.lineTo(fx, rulerY - poleH)
+        ctx.stroke()
+        ctx.fillStyle = '#F7931E'
+        ctx.beginPath()
+        ctx.moveTo(fx, rulerY - poleH)
+        ctx.lineTo(fx + 30, rulerY - poleH + 9)
+        ctx.lineTo(fx, rulerY - poleH + 18)
+        ctx.closePath()
+        ctx.fill()
+        ctx.restore()
+      }
       ctx.font = 'bold 52px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillStyle = state.hitResult === 'HIT' ? '#ffdd00' : '#ffffff'
@@ -567,17 +614,26 @@ export class Renderer {
       // 枠の下だと右端の「1000」が金具に隠れて「100」に読めてしまう（2026-07-05実機FB）。
       // ズーム遷移中は補間した半端な数値（例:127.4）をそのまま出すと「ランダムな数字」に見えてしまうため、
       // 旧の値（例:0）→新の値（例:300）をクロスフェードで見せる（両者とも位置は同じ端＝rsx/rex）。
+      // 段階ヒント（②）1段目：2回外したら両端の数字がふわっと大きくなって光る＝「まず端を見る」。
+      // 正解の目盛りは光らせない（つまずきは位置でなく「1目盛りはいくつか」の読み違いのため）。
+      const aidPulse = state.measureAid
+        ? 1 + 0.22 * (0.5 + 0.5 * Math.sin(performance.now() / 1000 * 2.6))
+        : 1
       const drawEdgeLabel = (edgeValue, text, alpha) => {
         if (alpha <= 0) return
         const x = valueToX(edgeValue, state.zoomMin, state.zoomMax, rsx, rex)
-        ctx.font = 'bold 26px sans-serif'
+        ctx.font = `bold ${Math.round(26 * aidPulse)}px sans-serif`
         ctx.textAlign = 'center'
         const hw = ctx.measureText(text).width / 2
         const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
         ctx.save()
         ctx.globalAlpha = alpha
+        if (state.measureAid) {
+          ctx.shadowColor = '#ffdd00'
+          ctx.shadowBlur  = 16 * aidPulse
+        }
         ctx.lineWidth = 6
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeStyle = state.measureAid ? 'rgba(255,240,160,0.95)' : 'rgba(255,255,255,0.95)'
         ctx.strokeText(text, lx, rulerY - 18)
         ctx.fillStyle = '#111'
         ctx.fillText(text, lx, rulerY - 18)
@@ -597,6 +653,25 @@ export class Renderer {
           drawEdgeLabel(value, String(value), 1)
         }
       })
+
+      // 段階ヒント（②）2段目：4回外したら「端のひとつ前の目盛り」に数字がポンと出る
+      // （例：0〜1000なら900、400〜500の部屋なら490）。1目盛りがいくつかを自力で逆算する足がかり。
+      // 答えの目盛りには最後まで何も出さない。ズーム遷移中は半端な値になるので描かない。
+      if (state.measureAid && state.measureAid.level >= 2 && state.zoomAnimT == null) {
+        const v = state.zoomMax - state.tickStep
+        const x = valueToX(v, state.zoomMin, state.zoomMax, rsx, rex)
+        const pop = Math.min(1, (performance.now() - state.measureAid.popStart) / 350)
+        const size = Math.round(24 * (0.5 + 0.5 * pop))
+        ctx.save()
+        ctx.font = `bold ${size}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.lineWidth = 5
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeText(String(v), x, rulerY + 44)
+        ctx.fillStyle = '#F7931E'
+        ctx.fillText(String(v), x, rulerY + 44)
+        ctx.restore()
+      }
     }
 
     // タイマー（MEASURE・上級のみ。左上・もどるボタンの右隣。ボタンの真下に描くと隠れて見えない）
@@ -641,31 +716,41 @@ export class Renderer {
       ctx.fillStyle = 'rgba(255,255,255,0.9)'
       // 表示は「今あそんでいる段」の名前（下のランクを選んで練習中に最高ランク名が出ると混乱する）
       ctx.fillText(state.stageName || r.name, cv.width - 20, 32)
+      // 昇格カウントが動くのは最上位ランクで遊んでいる時だけ（①）。
+      // 下のランクで遊んでいる間は薄く描いて「ここでは進まない」を文字なしで伝える。
+      const dim = state.rankProgressActive ? 1 : 0.35
       if (r.needed != null) {
-        // 次のランクまでのメーター（●=連続命中）右揃え
-        const rad = 7, gap = 20
+        // 次のランクへの道のり＝星（埋まった数が連続命中・文字を使わない）右揃え
+        const rad = 11, gap = 28
         const endX = cv.width - 20 - rad
+        ctx.globalAlpha = dim
         for (let i = 0; i < r.needed; i++) {
           const x = endX - (r.needed - 1 - i) * gap
-          ctx.beginPath()
-          ctx.arc(x, 52, rad, 0, Math.PI * 2)
-          ctx.fillStyle = i < Math.min(r.streak, r.needed) ? '#ffdd00' : 'rgba(255,255,255,0.30)'
-          ctx.fill()
-          ctx.lineWidth = 2
-          ctx.strokeStyle = 'rgba(0,0,0,0.45)'
-          ctx.stroke()
+          this._drawStar(ctx, x, 58, rad, i < Math.min(r.streak, r.needed))
         }
-        if (r.remaining > 0) {
-          ctx.font = 'bold 15px sans-serif'
-          ctx.fillStyle = 'rgba(255,255,255,0.85)'
-          ctx.fillText(`あと${r.remaining}かいで ${r.nextName}`, cv.width - 20, 80)
-        }
+        ctx.globalAlpha = 1
       } else {
         // 最高ランク：連続記録を見せる
+        ctx.globalAlpha = dim
         ctx.font = 'bold 15px sans-serif'
         ctx.fillStyle = 'rgba(255,255,255,0.85)'
         ctx.fillText(`れんぞく ${r.streak}かい`, cv.width - 20, 56)
+        ctx.globalAlpha = 1
       }
+      ctx.restore()
+    }
+
+    // 「つぎへ」ボタン（RESULT・右下）：自動送り廃止＝子どものペースで結果を眺められる（③）
+    if (state.nextButtonRect) {
+      const b = state.nextButtonRect
+      ctx.save()
+      ctx.fillStyle = '#c0531f'
+      roundRectPath(ctx, b.x, b.y, b.w, b.h, 12)
+      ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 26px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText('つぎへ ▶', b.x + b.w / 2, b.y + 35)
       ctx.restore()
     }
 
@@ -688,6 +773,25 @@ export class Renderer {
 
     // 初回プレイの操作ガイド（最前面）：対象を指す吹き出し＋ボタンなら光る枠
     if (state.guide) this._drawGuide(state.guide)
+  }
+
+  // 5角の星（昇格メーター用）。絵文字だとiOS canvasで見た目が揃わないためパスで描く。
+  // filled=true は金色（連続命中1回分）、false は輪郭だけの空き星（あと何回か）。
+  _drawStar(ctx, cx, cy, r, filled) {
+    ctx.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + i * Math.PI / 5
+      const rad = i % 2 === 0 ? r : r * 0.45
+      const x = cx + Math.cos(ang) * rad
+      const y = cy + Math.sin(ang) * rad
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+    ctx.fillStyle = filled ? '#ffdd00' : 'rgba(255,255,255,0.22)'
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = filled ? '#c8860a' : 'rgba(0,0,0,0.5)'
+    ctx.stroke()
   }
 
   // ガイド吹き出し：対象の真上でふわふわ上下する吹き出し（▼のしっぽ付き）。

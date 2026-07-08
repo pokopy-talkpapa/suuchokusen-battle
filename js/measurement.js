@@ -23,6 +23,15 @@ export function generateTargetInsideWindow(min, max, tickStep, span = null) {
   return t
 }
 
+// 測量ミスの救済ヒント段階：2回外し=1（両端の数字を強調）／4回外し=2（端のひとつ前の目盛りに数字）。
+// 正解の目盛りは最後まで光らせない＝つまずきの正体は「1目盛りはいくつか」の読み違いなので、
+// 向ける先は答えでなく読み方の入り口（まず端を見る→端のひとつ前から1目盛り分を自力で逆算する）。
+export function measureAidLevel(missCount) {
+  if (missCount >= 4) return 2
+  if (missCount >= 2) return 1
+  return 0
+}
+
 export function calcMeasurementError(measured, actual) {
   return Math.abs(measured - actual)
 }

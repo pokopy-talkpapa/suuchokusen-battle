@@ -2,7 +2,7 @@
 import { CONFIG, VERSION } from './config.js'
 import { valueToX, xToValue, getMeasureWindow } from './ruler.js'
 import { arcPoints } from './physics.js'
-import { generateTargetInsideWindow, judgeHit } from './measurement.js'
+import { generateTargetInsideWindow, judgeHit, measureAidLevel } from './measurement.js'
 import { UnlockState } from './unlock.js'
 import { Numpad } from './numpad.js'
 import { AimInput } from './aim.js'
@@ -52,7 +52,10 @@ class Game {
     this._fireDuration    = 700
     this._resultStart     = null
     this._resultDuration  = 1800
-    this._resultDur       = 1800  // 今回のRESULT表示時間（ランクアップ時は延長）
+    this._resultDur       = 1800  // RESULTの演出（撃沈アニメ等）の長さ。画面送りは「つぎへ」タップ待ち
+    this._nextReadyAt     = 0     // 「つぎへ」ボタンが押せるようになる時刻（着弾直後の誤タップ防止）
+    this._measureMiss     = 0     // このラウンドで測量の数字を外した回数（段階ヒントの判定に使う）
+    this._aidPopAt        = 0     // ヒントが1段進んだ時刻（数字ポンの出現アニメ用）
     this._pressPoint      = null
     this._lastShotScore   = null
     this._setFinished     = false
@@ -358,7 +361,12 @@ class Game {
       measureHint:    this._phase === 'MEASURE'
                         ? (this._measureSpan && (this._zoomMax - this._zoomMin) > this._measureSpan
                             ? 'ふねの あたりを タップ！'
-                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら そらを タップ！' : null))
+                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら そらを タップ！'
+                                : (measureAidLevel(this._measureMiss) >= 1 ? 'はしっこを みてみよう' : null)))
+                        : null,
+      // 測量ミスの段階ヒント（2回外し=両端強調／4回外し=端のひとつ前に数字）。renderer が描く
+      measureAid:     (this._phase === 'MEASURE' && measureAidLevel(this._measureMiss) >= 1)
+                        ? { level: measureAidLevel(this._measureMiss), popStart: this._aidPopAt }
                         : null,
       // 敵船は showShip(MEASURE/RESULT のみ)で制御し、AIM/FIRE は一人称/横視点の背景が隠す。
       // 霧の白オーバーレイは背景アートを白く潰すため廃止。
@@ -379,6 +387,8 @@ class Game {
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDur) : null,
       // ランク（両モード共通・連続命中で進む）とスコア
       rank:           rankInfo(this._unlock.maxLevel, this._unlock.streak, CONFIG),
+      // 昇格カウントが動くのは最上位ランクで遊んでいる時だけ。下のランクでは星を薄く描く（①）
+      rankProgressActive: (this._stageIndex + 1) === this._unlock.maxLevel,
       score: {
         last:        this._lastShotScore,
         shotCount:   this._score.shotCount(),
@@ -391,8 +401,11 @@ class Game {
       rankUp:         this._rankUp,
       rankUpName:     this._rankUpName,
       timerRemaining:  this._timerRemaining,
-      // FIRE/RESULT はタップを受けるリスナーが無い（自動で次へ進む）ので、押せないボタンは描かない
+      // FIRE はタップを受けるリスナーが無いので、押せないボタンは描かない
       backButtonRect:  (this._phase === 'MEASURE' || this._phase === 'AIM') ? this._backButtonRect() : null,
+      // 結果画面の「つぎへ」（③・自動送り廃止）。着弾直後の誤タップを防ぐため少し待ってから出す
+      nextButtonRect:  (this._phase === 'RESULT' && !this._guideRound
+                        && performance.now() >= this._nextReadyAt) ? this._nextButtonRect() : null,
       // ズームしている最中だけ表示。どこをタップすれば戻れるか一目でわかるように専用ボタンを出す。
       zoomOutButtonRect: (this._phase === 'MEASURE' && this._canZoomOut()) ? this._zoomOutButtonRect() : null,
       // 初回プレイの操作ガイド吹き出し（対象座標＋文言）。非ガイド時は null。
@@ -564,6 +577,8 @@ class Game {
     this._hitResult     = null
     this._fireStart     = null
     this._resultStart   = null
+    this._measureMiss   = 0
+    this._aidPopAt      = 0
 
     // テンキー（初級のみ＝読んだ数を入力してメモにする）
     if (CONFIG.MODES[this._mode].showNumpad) {
@@ -686,6 +701,10 @@ class Game {
       this._audio.play('miss')
       this._numpad.reset()
       this._numpad.flashWrong()
+      // 段階ヒント（②）：外した回数を数え、ヒントが1段進んだ瞬間を記録（数字ポンの出現アニメ用）
+      const before = measureAidLevel(this._measureMiss)
+      this._measureMiss++
+      if (measureAidLevel(this._measureMiss) > before) this._aidPopAt = performance.now()
       return
     }
     clearInterval(this._timerInterval)
@@ -751,6 +770,8 @@ class Game {
     this._canvas.removeEventListener('touchend', this._handleMeasureTap)
     this._canvas.removeEventListener('click',    this._handleAimButtons)
     this._canvas.removeEventListener('touchend', this._handleAimButtons)
+    this._canvas.removeEventListener('click',    this._handleResultTap)
+    this._canvas.removeEventListener('touchend', this._handleResultTap)
     this._aimInput.detach()
     this._numpad.hide()
     this._numpad.setHighlight(false)
@@ -823,9 +844,10 @@ class Game {
       return
     }
 
-    // ランクアップ判定（recordHit 前後の maxLevel 比較）
+    // ランクアップ判定（recordHit 前後の maxLevel 比較）。
+    // 遊んだランクを渡す＝最上位ランクで遊んだときだけカウントが動く（①・下のランクは自由練習）
     const prevMax = this._unlock.maxLevel
-    this._unlock.recordHit(isHit)
+    this._unlock.recordHit(isHit, this._stageIndex + 1)
     this._unlock.save()
     this._rankUp = this._unlock.maxLevel > prevMax
     this._rankUpName = this._rankUp ? currentStage(this._unlock.maxLevel, CONFIG).name : null
@@ -849,18 +871,38 @@ class Game {
 
     this._fireStart   = null
     this._resultStart = performance.now()
-    // ランクアップやセット満了はじっくり見せる
+    // 演出（撃沈アニメ・フラッシュ）の長さ。ランクアップやセット満了はじっくり見せる
     this._resultDur = (this._rankUp || this._setFinished) ? 3000 : this._resultDuration
+    // 画面送りは自動でなく「つぎへ」タップ待ち（③）。着弾を見た余韻＋誤タップ防止で少し待ってから出す
+    this._nextReadyAt = performance.now() + 600
+    this._canvas.addEventListener('click',    this._handleResultTap)
+    this._canvas.addEventListener('touchend', this._handleResultTap, { passive: false })
+  }
+
+  // 結果画面の「つぎへ」タップ（③）。押した点と離した点が同じボタン内のときだけ反応。
+  _handleResultTap = (e) => {
+    if (e.type === 'touchend') e.preventDefault()
+    if (this._phase !== 'RESULT') return
+    if (performance.now() < this._nextReadyAt) return
+    const p = this._eventXY(e)
+    if (!isTapOnRect(this._pressPoint, p, this._nextButtonRect())) return
+    this._audio.play('tap')
+    this._canvas.removeEventListener('click',    this._handleResultTap)
+    this._canvas.removeEventListener('touchend', this._handleResultTap)
     // そのランクに初めて上がった時だけ、次のラウンドの前に説明カードを見せる
     // （敵が「小さくなる」・ズームできる、を実物を見せる直前に一言で）
     const rankUpLevel = this._rankUp ? this._unlock.maxLevel : null
-    setTimeout(() => {
-      if (rankUpLevel != null && !this._tutorial.hasSeenRankUp(rankUpLevel)) {
-        this._tutorial.showRankUp(rankUpLevel, () => { this._audio.play('tap'); this._startMeasure() })
-      } else {
-        this._startMeasure()
-      }
-    }, this._resultDur)
+    if (rankUpLevel != null && !this._tutorial.hasSeenRankUp(rankUpLevel)) {
+      this._tutorial.showRankUp(rankUpLevel, () => { this._audio.play('tap'); this._startMeasure() })
+    } else {
+      this._startMeasure()
+    }
+  }
+
+  // 「つぎへ」ボタンの矩形（発射ボタンと同じ右下・renderer と共有する単一の真実）
+  _nextButtonRect() {
+    const cv = this._canvas
+    return { x: cv.offsetWidth - 150, y: cv.offsetHeight - 64, w: 130, h: 52 }
   }
 }
 

@@ -20,7 +20,10 @@ export class UnlockState {
     return this.maxLevel >= n
   }
 
-  recordHit(isHit) {
+  // playLevel＝いま遊んだランク（1〜3）。解放済みの最上位ランクで遊んだときだけカウントを動かす。
+  // 下のランクで遊ぶのは自由練習＝加算もリセットもしない（やさしい段で連続命中を稼ぐ「養殖」の防止）。
+  recordHit(isHit, playLevel = null) {
+    if (playLevel != null && playLevel < this.maxLevel) return
     if (isHit) {
       this.streak++
       const { BINOCULARS_STREAK, TELESCOPE_STREAK } = this.CONFIG.UNLOCK
