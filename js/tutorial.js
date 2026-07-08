@@ -8,9 +8,11 @@ const RANKUP_SEEN_KEY = 'suuchokusen_rankup_seen_v1'
 
 // 初めてそのランクに上がった時だけ見せる説明カード。
 // ポイントは「敵は遠くなるのではなく“小さくなる”」＝だからズームして細かく読む、を明言すること。
+// icon は絵文字でなく実際の敵スプライト画像を使う（🚁だとゲーム内のドローンと絵が
+// 違って混乱する・2026-07-08 実機FB）。「次に出てくる敵そのもの」を見せる。
 const RANKUP_CARDS = {
   2: {
-    icon: '⛵',
+    img: 'assets/enemy-boat.webp',
     title: 'いっちょまえ砲手に ランクアップ！',
     body: [
       'こんどの てきは <b>ちいさい ふね</b>！',
@@ -18,7 +20,7 @@ const RANKUP_CARDS = {
     ],
   },
   3: {
-    icon: '🚁',
+    img: 'assets/enemy-drone.webp',
     title: 'でんせつの砲手に ランクアップ！',
     body: [
       'てきは そらとぶ ドローン！ もっと <b>ちいさい</b>ぞ！',
@@ -107,7 +109,7 @@ export class Tutorial {
   showRankUp(level, onClose) {
     const card = RANKUP_CARDS[level]
     if (!card) { if (onClose) onClose(); return }
-    this._rankupIcon.textContent = card.icon
+    this._rankupIcon.innerHTML = `<img src="${card.img}" alt="" style="height:72px; vertical-align:middle;">`
     this._rankupTitle.textContent = card.title
     this._rankupBody.innerHTML = card.body.map(t => `<p>${t}</p>`).join('')
     this._onRankupClose = onClose
