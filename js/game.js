@@ -383,6 +383,9 @@ class Game {
                         ? Math.min(1, (performance.now() - this._fireStart) / this._fireDuration) : null,
       landingX:       this._landingX,
       hitResult:      this._hitResult,
+      // ねらい（正解）と着弾のずれ量（value単位）。結果画面でミス時に「◯◯ ずれた」を出す
+      resultGap:      (this._phase === 'RESULT' && this._landingValue != null)
+                        ? Math.abs(this._landingValue - this._targetValue) : null,
       resultProgress: (this._phase === 'RESULT' && this._resultStart != null)
                         ? Math.min(1, (performance.now() - this._resultStart) / this._resultDur) : null,
       // ランク（両モード共通・連続命中で進む）とスコア

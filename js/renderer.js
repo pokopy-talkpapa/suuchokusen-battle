@@ -512,6 +512,18 @@ export class Renderer {
           ctx.fillStyle = state.hitResult === 'HIT' ? 'rgba(90,220,120,0.35)' : 'rgba(255,80,60,0.35)'
           ctx.fillRect(bx1, rulerY - 7, bx2 - bx1, 14)
         }
+        // ミス時だけ「◯◯ ずれた」を帯の下に一言（外部レビュー反映：絵だけでは
+        // 「赤＝ダメ」以上が伝わりにくい。ずれを数で見せる＝数直線の値差の実感にもなる）
+        if (state.hitResult !== 'HIT' && state.resultGap != null && state.resultGap > 0) {
+          const tx = Math.max(50, Math.min(cv.width - 50, (bx1 + bx2) / 2))
+          ctx.font = 'bold 22px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.lineWidth = 5
+          ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+          ctx.strokeText(`${state.resultGap} ずれた`, tx, rulerY + 38)
+          ctx.fillStyle = '#ffdd00'
+          ctx.fillText(`${state.resultGap} ずれた`, tx, rulerY + 38)
+        }
 
         // 旗（ねらうべき場所＝正解値の真上）。ロゴ色のオレンジ＋こげ茶の棒
         const poleH = 46
@@ -736,6 +748,13 @@ export class Renderer {
         ctx.fillStyle = 'rgba(255,255,255,0.85)'
         ctx.fillText(`れんぞく ${r.streak}かい`, cv.width - 20, 56)
         ctx.globalAlpha = 1
+      }
+      // 下のランクで遊んでいる間は「れんしゅうちゅう」と一言（外部レビュー反映：
+      // 薄い星だけでは「バグ？なんで増えないの？」になる。練習という枠を言葉で与えて納得感を出す）
+      if (!state.rankProgressActive) {
+        ctx.font = 'bold 14px sans-serif'
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        ctx.fillText('れんしゅうちゅう', cv.width - 20, 84)
       }
       ctx.restore()
     }
