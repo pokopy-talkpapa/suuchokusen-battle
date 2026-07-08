@@ -13,7 +13,9 @@ const STORAGE_KEY = 'suuchokusen_score_v1'
 export class ScoreState {
   constructor(SCORE, { best = 0 } = {}) {
     this.SCORE = SCORE
-    this.best = best
+    // 保存データは壊れている前提で読む（数値以外・負の値は 0 に戻す）
+    const n = Math.trunc(Number(best))
+    this.best = (Number.isFinite(n) && n > 0) ? n : 0
     this._setScores = []
   }
 

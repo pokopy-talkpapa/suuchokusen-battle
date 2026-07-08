@@ -112,6 +112,20 @@ export class AudioManager {
     this._bgmStep = 0
     this._melBus = null
     this._lastNeedleAt = 0
+    // タブが裏に回ると setInterval が間引かれ、復帰時にBGMが「まばらな不協和音」になる。
+    // 裏に回ったら止めて、表に戻ったら鳴っていた場合だけ再開する
+    this._bgmWasPlaying = false
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          this._bgmWasPlaying = this.isBgmPlaying()
+          this.stopBgm()
+        } else if (this._bgmWasPlaying) {
+          this._bgmWasPlaying = false
+          this.startBgm()
+        }
+      })
+    }
   }
 
   // 最初のユーザー操作（touchstart/mousedown）で呼ぶ。iOSの自動再生制限対策。

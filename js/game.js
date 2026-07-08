@@ -76,8 +76,8 @@ class Game {
     const rect = this._canvas.getBoundingClientRect()
     const pt = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e
     return {
-      x: (pt.clientX - rect.left) * (this._canvas.width  / rect.width),
-      y: (pt.clientY - rect.top)  * (this._canvas.height / rect.height),
+      x: (pt.clientX - rect.left) * (this._canvas.offsetWidth  / rect.width),
+      y: (pt.clientY - rect.top)  * (this._canvas.offsetHeight / rect.height),
     }
   }
 
@@ -87,7 +87,13 @@ class Game {
   }
 
   async start() {
-    await this._renderer.init(this._canvas, CONFIG)
+    window.__gameBooted = true // ここまで来た＝JSは動く（index.htmlの起動見張りを解除）
+    const bar     = document.getElementById('loading-bar')
+    const overlay = document.getElementById('loading-overlay')
+    await this._renderer.init(this._canvas, CONFIG, (done, total) => {
+      if (bar) bar.style.width = `${Math.round(done / total * 100)}%`
+    })
+    if (overlay) overlay.classList.add('hidden')
     this._renderer.startLoop(() => this._buildState())
     // 「押した場所」を常に記録（ボタンは押した点と離した点が同じボタン内のときだけ反応させる）
     this._canvas.addEventListener('touchstart', this._recordPress, { passive: true })
@@ -192,7 +198,7 @@ class Game {
   // どんな画面でも「読める・押せる」を下回らせない（v1.38の失敗＝一律s倍で縮めすぎ、の再発防止）。
   // 文字を入れる枠（チップ・下段ボタン）の幅は measureText で文字幅から導出する（固定幅にしない）。
   _titleLayout() {
-    const cv = this._canvas, W = cv.width, H = cv.height
+    const cv = this._canvas, W = cv.offsetWidth, H = cv.offsetHeight
     const ctx = cv.getContext('2d')
     const s = Math.max(0.55, Math.min(1, H / 720))
 
@@ -299,11 +305,11 @@ class Game {
     // FIRE/RESULT も同じ起点にしないと、低い値の船・着弾が左端＝島の上に乗ってしまう。
     const seaView = this._phase === 'MEASURE' || this._phase === 'FIRE' || this._phase === 'RESULT'
     const rsx = seaView
-      ? Math.round(this._canvas.width * 0.155)
+      ? Math.round(this._canvas.offsetWidth * 0.155)
       : CONFIG.RULER.MARGIN_X
     const rex = seaView
-      ? Math.round(this._canvas.width * 0.88)
-      : this._canvas.width - CONFIG.RULER.MARGIN_X
+      ? Math.round(this._canvas.offsetWidth * 0.88)
+      : this._canvas.offsetWidth - CONFIG.RULER.MARGIN_X
     // FIRE/RESULT は「答え合わせ」＝全体スケール（0〜1000）で見せる。
     // 測量窓のままだと着弾X（全体スケール）と目盛りが食い違い、正しく撃っても見た目がズレる。
     const fullView = this._phase === 'FIRE' || this._phase === 'RESULT'
@@ -484,9 +490,9 @@ class Game {
     }
     if (!this._guide) return null
     if (this._guide === 'measure' && this._phase === 'MEASURE') {
-      const rulerY = Math.round(cv.height * 0.35)
-      const rsx = Math.round(cv.width * 0.155)
-      const rex = Math.round(cv.width * 0.88)
+      const rulerY = Math.round(cv.offsetHeight * 0.35)
+      const rsx = Math.round(cv.offsetWidth * 0.155)
+      const rex = Math.round(cv.offsetWidth * 0.88)
       const x = valueToX(this._targetValue, this._zoomMin, this._zoomMax, rsx, rex)
       return { x, y: rulerY, ring: null,
                text: 'ふねの うえの めもりを よんで すうじを おそう！' }
@@ -509,8 +515,8 @@ class Game {
 
   _panelGeom() {
     const sx = CONFIG.AIM_PANEL.MARGIN_X
-    const ex = this._canvas.width - CONFIG.AIM_PANEL.MARGIN_X
-    const y  = this._canvas.height - CONFIG.AIM_PANEL.Y_FROM_BOTTOM
+    const ex = this._canvas.offsetWidth - CONFIG.AIM_PANEL.MARGIN_X
+    const y  = this._canvas.offsetHeight - CONFIG.AIM_PANEL.Y_FROM_BOTTOM
     return { sx, ex, y }
   }
 
@@ -616,7 +622,7 @@ class Game {
   // 「もどす」ボタンの矩形（測量ヒントの下・中央）
   _zoomOutButtonRect() {
     const cv = this._canvas
-    return { x: Math.round(cv.width / 2 - 100), y: 54, w: 200, h: 40 }
+    return { x: Math.round(cv.offsetWidth / 2 - 100), y: 54, w: 200, h: 40 }
   }
 
   // 段階ズームをひとつ手前へ戻す（10の部屋→100の部屋、100の部屋→全体）。
@@ -635,18 +641,21 @@ class Game {
     }
   }
 
-  // 数直線の帯（上下120px）へのタップだけズーム扱い。処理したら true。ズームインのみ行う。
+  // 数直線から船の水面までの帯へのタップだけズーム扱い。処理したら true。ズームインのみ行う。
+  // 帯の下端は±固定pxでなく船の水平線基準にする＝縦に広い画面（iPad）でも
+  // 「ふねの あたりを タップ」の指示どおり船本体を叩いて反応する。
   // 段階ズーム：全体(1000)→100の部屋→(でんせつのみ)10の部屋。いちばん奥まで来ていたら何もしない
   // （戻るのは専用の「もどす」ボタンの役目）。
   _handleMeasureZoomTap(p) {
     const cv = this._canvas
-    const rulerY = Math.round(cv.height * 0.35) // 海の構図の数直線Y（renderer と同じ式）
-    if (Math.abs(p.y - rulerY) > 120) return false
+    const rulerY = Math.round(cv.offsetHeight * 0.35) // 海の構図の数直線Y（renderer と同じ式）
+    const waterY = Math.round(cv.offsetHeight * 0.55) // 船が浮く水平線（renderer と同じ式）
+    if (p.y < rulerY - 120 || p.y > waterY + 90) return false
     this._audio.play('tap')
     const width = this._zoomMax - this._zoomMin
     if (width <= this._measureSpan) return true // いちばん奥＝これ以上は入れない
-    const rsx = Math.round(cv.width * 0.155)
-    const rex = Math.round(cv.width * 0.88)
+    const rsx = Math.round(cv.offsetWidth * 0.155)
+    const rex = Math.round(cv.offsetWidth * 0.88)
     const x = Math.max(rsx, Math.min(rex, p.x))
     const v = xToValue(x, this._zoomMin, this._zoomMax, rsx, rex)
     // 1段深い部屋へ（段階の窓幅より深くは行かない）＝ズームイン
@@ -756,9 +765,9 @@ class Game {
   // 発射／ズームボタンの矩形（renderer.drawFrame と同じ式・単一の真実にするため共有計算）
   _buttonRects() {
     const cv = this._canvas
-    const fire = { x: cv.width - 150, y: cv.height - 64, w: 130, h: 52 }
+    const fire = { x: cv.offsetWidth - 150, y: cv.offsetHeight - 64, w: 130, h: 52 }
     const zoom = this._stage.aim.zoomable
-      ? { x: 20, y: cv.height - 64, w: 130, h: 52 }
+      ? { x: 20, y: cv.offsetHeight - 64, w: 130, h: 52 }
       : null
     return { fire, zoom }
   }
@@ -777,13 +786,13 @@ class Game {
     // 発射→着弾で画面が切り替わる違和感をなくすため、最初から答え合わせの画面で飛ばす。
     const cv  = this._canvas
     // 数直線の起点は _buildState の seaView と同じ（大砲先端15.5%〜88%）。ズレると着弾と目盛りが食い違う。
-    const rsx = Math.round(cv.width * 0.155)
-    const rex = Math.round(cv.width * 0.88)
+    const rsx = Math.round(cv.offsetWidth * 0.155)
+    const rex = Math.round(cv.offsetWidth * 0.88)
     // 砲口＝island-cutout の絵の中の大砲の先端（島は幅16%・大砲が rulerY 付近に来る配置）
-    const rulerY  = Math.round(cv.height * 0.35)
-    const cannonX = Math.round(cv.width * 0.144)
-    const cannonY = Math.round(rulerY + cv.width * 0.021)
-    const waterY  = Math.round(cv.height * 0.55) // 船が浮く水平線
+    const rulerY  = Math.round(cv.offsetHeight * 0.35)
+    const cannonX = Math.round(cv.offsetWidth * 0.144)
+    const cannonY = Math.round(rulerY + cv.offsetWidth * 0.021)
+    const waterY  = Math.round(cv.offsetHeight * 0.55) // 船が浮く水平線
 
     // 着水点＝置いた値そのもの（ブレなし）。全体スケール 0〜1000 で x に変換。
     this._landingValue = value

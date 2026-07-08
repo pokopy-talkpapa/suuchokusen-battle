@@ -40,3 +40,17 @@ test('一度解放されたレベルは miss 後も維持される', () => {
   s.recordHit(false) // streak リセット
   assert.ok(s.isUnlocked(2)) // 解放は維持
 })
+
+// ── 保存データが壊れていても安全な値に丸めて復元する ──
+test('壊れた保存値: maxLevel=0 は 1 に丸める（チップ全🔒バグの防止）', () => {
+  const s = new UnlockState(CFG, { maxLevel: 0 })
+  assert.equal(s.maxLevel, 1)
+  assert.ok(s.isUnlocked(1))
+})
+test('壊れた保存値: 文字列・NaN・範囲外は既定値/丸めで復元', () => {
+  assert.equal(new UnlockState(CFG, { maxLevel: 'abc' }).maxLevel, 1)
+  assert.equal(new UnlockState(CFG, { maxLevel: 99 }).maxLevel, 3)
+  assert.equal(new UnlockState(CFG, { level: -5 }).level, 1)
+  assert.equal(new UnlockState(CFG, { streak: -3 }).streak, 0)
+  assert.equal(new UnlockState(CFG, { streak: '2' }).streak, 2)
+})

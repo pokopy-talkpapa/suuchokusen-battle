@@ -169,6 +169,60 @@
       touch-action: manipulation;
       white-space: nowrap; /* ボタンの文字は絶対に折り返さない */
     }
+    /* ローディング：JSが動く前から見える（display:flexが初期値）＝無言の青画面をなくす */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 90;
+      background: #0d4f7a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    #loading-overlay.hidden { display: none; }
+    .loading-text { font-size: 24px; font-weight: bold; margin-bottom: 18px; }
+    .loading-bar-frame {
+      width: min(320px, 70vw);
+      height: 18px;
+      border: 3px solid #ffcc33;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(0,0,0,0.35);
+    }
+    #loading-bar {
+      width: 0%;
+      height: 100%;
+      background: #F7931E;
+      transition: width 0.15s ease;
+    }
+    /* 致命的エラー：無言で固まる代わりに、やりなおしボタンを出す */
+    #fatal-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 200;
+      background: #0d4f7a;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #fff;
+    }
+    #fatal-overlay.visible { display: flex; }
+    #fatal-overlay .fatal-inner { padding: 20px; }
+    #fatal-overlay p { font-size: 20px; font-weight: bold; margin-bottom: 16px; }
+    #fatal-reload {
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+      background: #F7931E;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 40px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
     /* プレイ画面ガイド中：いま押してほしいテンキーを光らせる */
     #numpad.tutorial-focus {
       animation: numpad-pulse 1s ease-in-out infinite;
@@ -239,7 +293,47 @@
         <div class="rotate-text">よこむきにしてね</div>
       </div>
     </div>
+    <div id="loading-overlay">
+      <div class="loading-text">🏴‍☠️ じゅんびちゅう…</div>
+      <div class="loading-bar-frame"><div id="loading-bar"></div></div>
+    </div>
+    <div id="fatal-overlay">
+      <div class="fatal-inner">
+        <p id="fatal-message">あれれ、うまく うごかなかった！</p>
+        <button id="fatal-reload">もういちど ひらく</button>
+      </div>
+    </div>
   </div>
+  <script>
+    // クラシックscript＝古い端末でモジュールが解釈できなくてもここは必ず動く。
+    // 「無言の青画面」の代わりに、必ず何かしらのメッセージを出すための受け皿。
+    (function () {
+      var shown = false
+      window.showFatalError = function (err, message) {
+        if (shown) return
+        shown = true
+        try { console.error(err) } catch (_) {}
+        if (message) document.getElementById('fatal-message').textContent = message
+        document.getElementById('loading-overlay').className = 'hidden'
+        document.getElementById('fatal-overlay').className = 'visible'
+      }
+      document.getElementById('fatal-reload').addEventListener('click', function () {
+        window.location.reload()
+      })
+      // 起動前のエラー（古いiOSのモジュール解釈エラー等）だけ全体エラーとして扱う。
+      // 起動後の些細なエラーでゲームを止めないため、__gameBooted 後は無視する
+      window.addEventListener('error', function (e) {
+        if (!window.__gameBooted) window.showFatalError(e.error || e.message)
+      })
+      // 見張り：8秒たってもJS本体が動き出さない＝この端末では動かない可能性が高い
+      setTimeout(function () {
+        if (!window.__gameBooted) {
+          window.showFatalError(null,
+            'うごかないみたい…。おうちのひとへ：この端末のOS/ブラウザが古い可能性があります。アップデート後にもう一度お試しください。')
+        }
+      }, 8000)
+    })()
+  </script>
   <script type="module" src="js/game.js"></script>
 </body>
 </html>

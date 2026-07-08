@@ -75,8 +75,8 @@ export class AimInput {
     const toXY = (pt) => {
       const rect = canvas.getBoundingClientRect()
       return {
-        x: (pt.clientX - rect.left) * (canvas.width  / rect.width),
-        y: (pt.clientY - rect.top)  * (canvas.height / rect.height),
+        x: (pt.clientX - rect.left) * (canvas.offsetWidth  / rect.width),
+        y: (pt.clientY - rect.top)  * (canvas.offsetHeight / rect.height),
       }
     }
     const setFromX = (x) => {

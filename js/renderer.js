@@ -27,37 +27,56 @@ export class Renderer {
     this._CONFIG = null
     this._imgs   = {}
     this._rafId  = null
+    this._w      = 0 // 論理サイズ（CSSピクセル）。座標計算はすべてこちらを使う
+    this._h      = 0
+    this._dpr    = 1 // 描画バッファだけ devicePixelRatio 倍にして文字のにじみをなくす
   }
 
-  async init(canvas, CONFIG) {
+  async init(canvas, CONFIG, onProgress = null) {
     this._canvas = canvas
     this._ctx    = canvas.getContext('2d')
     this._CONFIG = CONFIG
     this._resize()
     window.addEventListener('resize', () => this._resize())
 
-    // PNG が未用意でもゲームは動く（Canvas 図形でフォールバック）
+    // 画像が未用意でもゲームは動く（Canvas 図形でフォールバック）
+    let loaded = 0
     await Promise.allSettled(
       ASSET_NAMES.map(name => new Promise((resolve) => {
         const img = new Image()
-        img.onload  = () => { this._imgs[name] = img; resolve() }
-        img.onerror = resolve
-        img.src = `assets/${name}.png`
+        const done = () => {
+          loaded++
+          if (onProgress) onProgress(loaded, ASSET_NAMES.length)
+          resolve()
+        }
+        img.onload  = () => { this._imgs[name] = img; done() }
+        img.onerror = done
+        img.src = `assets/${name}.webp`
       }))
     )
   }
 
   _resize() {
-    this._canvas.width  = this._canvas.offsetWidth
-    this._canvas.height = this._canvas.offsetHeight
+    const dpr = Math.min(window.devicePixelRatio || 1, 3)
+    this._dpr = dpr
+    this._w   = this._canvas.offsetWidth
+    this._h   = this._canvas.offsetHeight
+    this._canvas.width  = Math.round(this._w * dpr)
+    this._canvas.height = Math.round(this._h * dpr)
   }
 
-  _rulerY()  { return this._canvas.height - this._CONFIG.RULER.Y_FROM_BOTTOM }
+  // 論理サイズのビュー（width/height だけを持つ）。描画コードは実バッファでなくこれを見る
+  _view() { return { width: this._w, height: this._h } }
+
+  _rulerY()  { return this._h - this._CONFIG.RULER.Y_FROM_BOTTOM }
   _rulerSX() { return this._CONFIG.RULER.MARGIN_X }
-  _rulerEX() { return this._canvas.width - this._CONFIG.RULER.MARGIN_X }
+  _rulerEX() { return this._w - this._CONFIG.RULER.MARGIN_X }
 
   drawFrame(state) {
-    const { _ctx: ctx, _canvas: cv, _CONFIG: CFG } = this
+    const { _ctx: ctx, _CONFIG: CFG } = this
+    const cv = this._view()
+    // 論理座標(CSSピクセル)で描き、バッファだけ dpr 倍 = Retinaでも文字がくっきり
+    ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0)
     // MEASURE・FIRE・RESULT は同じ構図（数直線=高さ35%・船は水平線）。
     // 発射→着弾で画面が切り替わる違和感をなくすため FIRE も着弾シーンで描く。
     const seaView = state.phase === 'MEASURE' || state.phase === 'FIRE' || state.phase === 'RESULT'
@@ -675,7 +694,7 @@ export class Renderer {
   // guide.ring が矩形なら、その周りに脈打つ金色の枠も描く（ボタン誘導用）。
   _drawGuide(guide) {
     const ctx = this._ctx
-    const cv  = this._canvas
+    const cv  = this._view()
     const t = performance.now() / 1000
     ctx.save()
 
@@ -736,7 +755,7 @@ export class Renderer {
     // 一人称の砦（AIM）だけは背景が固定画像なので、ここで時間帯の色を薄くかぶせて雰囲気を合わせる。
     if (state.phase !== 'AIM') return
     const ctx = this._ctx
-    const cv  = this._canvas
+    const cv  = this._view()
     ctx.save()
 
     if (tod === 'evening') {
@@ -819,7 +838,13 @@ export class Renderer {
 
   startLoop(getState) {
     const loop = () => {
-      this.drawFrame(getState())
+      // 1回の描画エラーで永久フリーズさせない：エラー画面を出してループを止める
+      try {
+        this.drawFrame(getState())
+      } catch (err) {
+        if (window.showFatalError) window.showFatalError(err)
+        return
+      }
       this._rafId = requestAnimationFrame(loop)
     }
     this._rafId = requestAnimationFrame(loop)

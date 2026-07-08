@@ -65,3 +65,12 @@ test('rankInfo: ランク名と残り回数', () => {
   assert.equal(r3.needed, null)
   assert.equal(r3.nextName, null)
 })
+
+// ── 保存データが壊れていても安全な値に丸めて復元する ──
+import { ScoreState as _SanState } from '../js/score.js'
+test('壊れた保存値: best が数値でない/負なら 0 に戻す', () => {
+  const SCORE = { SET_SIZE: 10, MAX: 100, MIN_AT_EDGE: 10 }
+  assert.equal(new _SanState(SCORE, { best: 'xyz' }).best, 0)
+  assert.equal(new _SanState(SCORE, { best: -50 }).best, 0)
+  assert.equal(new _SanState(SCORE, { best: 123.9 }).best, 123)
+})
