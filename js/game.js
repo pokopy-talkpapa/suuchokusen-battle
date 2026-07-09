@@ -1,6 +1,6 @@
 // js/game.js
 import { CONFIG, VERSION } from './config.js'
-import { valueToX, xToValue, getMeasureWindow } from './ruler.js'
+import { valueToX, xToValue, getMeasureWindow, zoomWindowAt } from './ruler.js'
 import { arcPoints } from './physics.js'
 import { generateTargetInsideWindow, judgeHit, measureAidLevel } from './measurement.js'
 import { UnlockState } from './unlock.js'
@@ -14,7 +14,6 @@ import { AudioManager } from './audio.js'
 import { Tutorial } from './tutorial.js'
 
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
-function lerp(a, b, t) { return a + (b - a) * t }
 
 class Game {
   constructor() {
@@ -462,8 +461,9 @@ class Game {
     }
     const t = Math.min(1, (elapsed - a.highlightDuration) / a.zoomDuration)
     const e = easeOutCubic(t)
-    const min = lerp(a.fromMin, a.toMin, e)
-    const max = lerp(a.fromMax, a.toMax, e)
+    // 端点lerpだと窓が横滑りして「横から拡大してくる」ように見えるため、
+    // タップした区間がその場で左右の端へ広がる補間（zoomWindowAt）を使う
+    const { min, max } = zoomWindowAt(a.fromMin, a.fromMax, a.toMin, a.toMax, e)
     if (t >= 1) this._zoomAnim = null
     return { min, max, t, fromMin: a.fromMin, fromMax: a.fromMax, highlight: null }
   }
