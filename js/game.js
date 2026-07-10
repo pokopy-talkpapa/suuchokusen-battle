@@ -360,7 +360,7 @@ class Game {
       measureHint:    this._phase === 'MEASURE'
                         ? (this._measureSpan && (this._zoomMax - this._zoomMin) > this._measureSpan
                             ? 'ふねの あたりを タップ！'
-                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら そらを タップ！'
+                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら みぎしたの ボタン！'
                                 : (measureAidLevel(this._measureMiss) >= 1 ? 'はしっこを みてみよう' : null)))
                         : null,
       // 測量ミスの段階ヒント（2回外し=両端強調／4回外し=端のひとつ前に数字）。renderer が描く
@@ -410,6 +410,9 @@ class Game {
                         && performance.now() >= this._nextReadyAt) ? this._nextButtonRect() : null,
       // ズームしている最中だけ表示。どこをタップすれば戻れるか一目でわかるように専用ボタンを出す。
       zoomOutButtonRect: (this._phase === 'MEASURE' && this._canZoomOut()) ? this._zoomOutButtonRect() : null,
+      // 上級の測量だけ右下に「おぼえた！」（そらタップ廃止・タイマー切れの自動進行は残る）
+      memorizedButtonRect: (this._phase === 'MEASURE' && !CONFIG.MODES[this._mode].showNumpad)
+                        ? this._memorizedButtonRect() : null,
       // 初回プレイの操作ガイド吹き出し（対象座標＋文言）。非ガイド時は null。
       guide:           this._guideCallout(),
       // タイトル画面の積み上げレイアウト（renderer はこれだけを見て描画・自前の再計算はしない）
@@ -598,7 +601,7 @@ class Game {
     this._guideRound = this._guide != null
     this._numpad.setHighlight(this._guide === 'measure')
 
-    // 「読んで覚えたら そらをタップで射撃へ」（上級／初級は数字入力で進む）
+    // 測量中のタップ受付（上級=「おぼえた！」ボタンで射撃へ／初級は数字入力で進む）
     this._canvas.addEventListener('click',    this._handleMeasureTap)
     this._canvas.addEventListener('touchend', this._handleMeasureTap, { passive: false })
 
@@ -617,7 +620,7 @@ class Game {
   // 測量中のタップ：
   // ①窓のある段階＝数直線の近くをタップ→その「部屋」へズーム（ズームインのみ）
   // ②専用「もどす」ボタン→ズームを1段階だけ手前に戻す（ズームインとジェスチャーを分けて戻り方を明確にする）
-  // ③上級は数直線から離れた場所（そら）をタップ→射撃へ（初級はテンキーのOKで進む）
+  // ③上級は右下の「おぼえた！」ボタン→射撃へ（初級はテンキーのOKで進む）
   _handleMeasureTap = (e) => {
     if (e.type === 'touchend') e.preventDefault()
     if (this._phase !== 'MEASURE') return
@@ -626,10 +629,22 @@ class Game {
     if (this._canZoomOut() && isTapOnRect(this._pressPoint, p, this._zoomOutButtonRect())) {
       this._audio.play('tap'); this._zoomOutOneLevel(); return
     }
+    // 上級の「射撃へ進む」は専用の「おぼえた！」ボタンだけ（2026-07-10実機FB）。
+    // 旧「そらタップで進む」は①ズーム帯判定が広く実質そらが存在せず進めない
+    // ②直せても数直線のすぐ上がそら＝指ズレで誤発射に進む事故が構造的に残る、の2重の理由で廃止。
+    if (!CONFIG.MODES[this._mode].showNumpad
+        && isTapOnRect(this._pressPoint, p, this._memorizedButtonRect())) {
+      this._audio.play('tap')
+      this._advanceFromMeasure()
+      return
+    }
     if (this._measureSpan && this._handleMeasureZoomTap(p)) return
-    if (CONFIG.MODES[this._mode].showNumpad) return // 初級はテンキーで進む
-    this._audio.play('tap')
-    this._advanceFromMeasure()
+  }
+
+  // 「おぼえた！」ボタン（上級の測量のみ）。射撃の「うつ！」と同じ位置・同じ形＝迷わない
+  _memorizedButtonRect() {
+    const cv = this._canvas
+    return { x: cv.offsetWidth - 150, y: cv.offsetHeight - 64, w: 130, h: 52 }
   }
 
   // ズームを1段階だけ手前に戻せる状態か（＝ズームしている最中かどうか）

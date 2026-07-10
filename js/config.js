@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.45'
+export const VERSION = 'v1.46'
 
 export const CONFIG = {
   RULER: {
@@ -104,7 +104,9 @@ export const CONFIG = {
     },
   },
   AIM_PANEL: {
-    MARGIN_X: 130,       // 照準パネル数直線の左右マージンpx（パネルPNGの木の内側＝左右約12%の金具を避ける）
+    MARGIN_X: 175,       // 照準パネル数直線の左右マージンpx。金具(左右約12%)に加え、下角の
+                         // もどす/うつ！ボタン(内側端150px)も避ける。130だと端の目盛り数字
+                         // (500/600等)がボタンの下に描かれて読めなかった(2026-07-10実機FB)
     HEIGHT: 92,          // パネルPNGの描画高さpx
     Y_FROM_BOTTOM: 70,   // 画面下端からパネル中心までのpx
   },

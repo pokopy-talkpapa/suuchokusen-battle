@@ -386,19 +386,25 @@ export class Renderer {
       }
 
       // パネル上の数直線（全体スケール or 上級ズーム窓）
+      // ズーム中は「500・550・600 の基準を見比べて、その間に目分量で針を置く」のが学びの核。
+      // 真ん中の550しか読めなかった実機FB(2026-07-10)への対策は2点セット：
+      // ①ズーム中だけ数字を大きく・濃く出す(ここ) ②両端の数字が下角のボタンに描き潰され
+      // ないよう数直線を内側に寄せる(config.js AIM_PANEL.MARGIN_X)。①だけでは直らない。
       ctx.strokeStyle = '#3a2410'
       ctx.fillStyle   = '#2a1a00'
-      ctx.font = 'bold 13px sans-serif'
       ctx.textAlign = 'center'
       ctx.lineWidth = 2
       ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke()
+      const labelFont = a.zoomed ? 'bold 21px sans-serif' : 'bold 13px sans-serif'
+      const labelDy   = a.zoomed ? 22 : 16
+      ctx.font = labelFont
       getTicks(a.panelMin, a.panelMax, a.tickStep).forEach(({ value, isMajor }) => {
         const tx = valueToX(value, a.panelMin, a.panelMax, sx, ex)
         const tH = isMajor ? 18 : 9
         ctx.lineWidth = isMajor ? 2 : 1
         ctx.beginPath(); ctx.moveTo(tx, y - tH / 2); ctx.lineTo(tx, y + tH / 2); ctx.stroke()
         // 数字は線の下側（上側だと針のつまみと重なって読めない）
-        if (isMajor) ctx.fillText(String(value), tx, y + tH / 2 + 16)
+        if (isMajor) ctx.fillText(String(value), tx, y + tH / 2 + labelDy)
       })
 
       // 針（つまみ）
@@ -694,7 +700,7 @@ export class Renderer {
       ctx.fillText(`⏱ ${state.timerRemaining}`, 116, 46)
     }
 
-    // 進め方ヒント（上中央）：ズーム前=「ふねの あたりを タップ！」／上級ズーム後=「おぼえたら そらを タップ！」
+    // 進め方ヒント（上中央）：ズーム前=「ふねの あたりを タップ！」／上級ズーム後=「おぼえたら みぎしたの ボタン！」
     if (state.measureHint) {
       ctx.font = 'bold 22px sans-serif'
       ctx.textAlign = 'center'
@@ -716,6 +722,20 @@ export class Renderer {
       ctx.textAlign = 'center'
       ctx.fillStyle = '#ffffff'
       ctx.fillText('◀ ひとつ もどす', b.x + b.w / 2, b.y + 26)
+      ctx.restore()
+    }
+
+    // 「おぼえた！」ボタン（上級の測量・右下）：射撃の「うつ！」と同じ位置・同じ色＝押せば進むが一目でわかる
+    if (state.memorizedButtonRect) {
+      const b = state.memorizedButtonRect
+      ctx.save()
+      ctx.fillStyle = '#c0531f'
+      roundRectPath(ctx, b.x, b.y, b.w, b.h, 12)
+      ctx.fill()
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 22px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText('おぼえた！', b.x + b.w / 2, b.y + 33)
       ctx.restore()
     }
 
