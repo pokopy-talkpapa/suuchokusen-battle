@@ -700,7 +700,7 @@ export class Renderer {
       ctx.fillText(`⏱ ${state.timerRemaining}`, 116, 46)
     }
 
-    // 進め方ヒント（上中央）：ズーム前=「ふねの あたりを タップ！」／上級ズーム後=「おぼえたら みぎしたの ボタン！」
+    // 進め方ヒント（上中央）：ズーム案内（最初の数回のみ）／初級の測量ミス段階ヒント
     if (state.measureHint) {
       ctx.font = 'bold 22px sans-serif'
       ctx.textAlign = 'center'

@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.46'
+export const VERSION = 'v1.47'
 
 export const CONFIG = {
   RULER: {
@@ -35,6 +35,10 @@ export const CONFIG = {
     CENTER_X: 78,        // 島の中心X（砲台と揃える）
     WIDTH: 150,
     HEIGHT: 70,
+  },
+  HINT: {
+    ZOOM_ROUNDS: 3,      // 「ふねの あたりを タップ！」を出すのは窓のある段階の最初の◯回だけ
+                         // （画面の文字を減らす。ズーム操作を覚えたら案内は消す・2026-07-10）
   },
   TIMER: {
     MEASURE_SEC: 15,     // 測量フェーズの制限時間（秒）

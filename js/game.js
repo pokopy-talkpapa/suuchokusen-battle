@@ -357,11 +357,14 @@ class Game {
       showShip:       this._phase === 'MEASURE'
                         ? (this._targetValue >= vMin && this._targetValue <= vMax)
                         : (this._phase === 'FIRE' || this._phase === 'RESULT'),
+      // 進め方の文字案内は最小限に（文字より色・配置）。ズーム案内は操作を覚えるまでの
+      // 最初の数回だけ、上級の「おぼえた！」はボタン自身が説明するので文字なし（2026-07-10）。
       measureHint:    this._phase === 'MEASURE'
                         ? (this._measureSpan && (this._zoomMax - this._zoomMin) > this._measureSpan
-                            ? 'ふねの あたりを タップ！'
-                            : (!CONFIG.MODES[this._mode].showNumpad ? 'おぼえたら みぎしたの ボタン！'
-                                : (measureAidLevel(this._measureMiss) >= 1 ? 'はしっこを みてみよう' : null)))
+                            ? (this._zoomHintRounds <= CONFIG.HINT.ZOOM_ROUNDS
+                                ? 'ふねの あたりを タップ！' : null)
+                            : (CONFIG.MODES[this._mode].showNumpad && measureAidLevel(this._measureMiss) >= 1
+                                ? 'はしっこを みてみよう' : null))
                         : null,
       // 測量ミスの段階ヒント（2回外し=両端強調／4回外し=端のひとつ前に数字）。renderer が描く
       measureAid:     (this._phase === 'MEASURE' && measureAidLevel(this._measureMiss) >= 1)
@@ -570,6 +573,7 @@ class Game {
       this._zoomMin  = CONFIG.RULER.MIN
       this._zoomMax  = CONFIG.RULER.MAX
       this._tickStep = 100
+      this._zoomHintRounds = this._countZoomHintRound()
     } else {
       const win = getMeasureWindow(this._targetValue, this._stage, CONFIG)
       this._zoomMin  = win.min
@@ -639,6 +643,17 @@ class Game {
       return
     }
     if (this._measureSpan && this._handleMeasureZoomTap(p)) return
+  }
+
+  // 窓のある段階を何回目に遊んでいるかを localStorage で数える（ズーム案内を最初の数回だけ出す用）。
+  // 上限を超えたら書き込みを止める＝カウンタが際限なく増えない
+  _countZoomHintRound() {
+    let n = parseInt(localStorage.getItem('suuchokusen_zoom_hint_v1'), 10) || 0
+    if (n <= CONFIG.HINT.ZOOM_ROUNDS) {
+      n += 1
+      localStorage.setItem('suuchokusen_zoom_hint_v1', String(n))
+    }
+    return n
   }
 
   // 「おぼえた！」ボタン（上級の測量のみ）。射撃の「うつ！」と同じ位置・同じ形＝迷わない
