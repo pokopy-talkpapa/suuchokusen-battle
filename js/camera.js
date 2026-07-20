@@ -9,8 +9,8 @@
 // （答え合わせ＝FIRE/RESULT、ズームを持たないみならいの測量）まで効かせると、一番の見せ場である
 // 撃沈アニメが崩れるだけで得が無い。そこで zoomable=false のときは STATIC_* の等倍・定位置を返す。
 
-// 連続ズームレベル: 全体=0・100窓=1・10窓=2。それより狭い窓は呼び出し側のテーブル補間で
-// 末尾クランプされる
+// 連続ズームレベル: 全体=0・100窓=1・10窓=2。それより狭い窓の level は
+// lerpByLevel 内でテーブル末尾にクランプされる
 function zoomLevelOf(zoomMin, zoomMax, CONFIG) {
   const { MIN, MAX } = CONFIG.RULER
   const span = Math.max(1, zoomMax - zoomMin)
