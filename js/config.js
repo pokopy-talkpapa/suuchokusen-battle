@@ -114,6 +114,17 @@ export const CONFIG = {
       enemyScale: 0.55,     // 序盤と同サイズに統一（2026-07-04実機FB）
       enemySprite: 'enemy-drone',  // 夜＝空とぶドローン（さらに小さく・空中）
     },
+    { // まぼろし：0〜10.0の小数表示で読む（内部値は0〜1000のまま÷100表示）。
+      name: 'まぼろしの砲手',
+      measureMode: 'ten',      // 測量は target を含む10窓（一の目盛り）
+      measureTickStep: 1,
+      targetStep: 10,          // 正解は0.1（raw:10）の倍数
+      aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
+      hitMargin: 7,
+      enemyScale: 0.55,
+      enemySprite: 'enemy-drone',
+      display: { divisor: 100, decimals: 1 }, // 数直線の読み値を÷100で小数表示
+    },
   ],
   ENEMY: {
     X_RATIO: 0.75,       // 敵船のCanvas X座標比率（0〜1）
