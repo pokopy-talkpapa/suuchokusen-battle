@@ -343,8 +343,8 @@ class Game {
 
     return {
       phase:          this._phase,
-      // ランクで時間帯が進む演出：みならい=昼 / いっちょまえ=夕方 / でんせつ=夜
-      timeOfDay:      ['day', 'evening', 'night'][this._stageIndex] || 'day',
+      // ランクで時間帯が進む演出：みならい=昼 / いっちょまえ=夕方 / でんせつ=夜 / まぼろし=夜(仮・フェーズ3でミクロの海背景に差し替え)
+      timeOfDay:      ['day', 'evening', 'night', 'night'][this._stageIndex] || 'day',
       zoomMin:        vMin,
       zoomMax:        vMax,
       tickStep:       vTick,
