@@ -40,6 +40,32 @@ export function enemyAnchorFrac(zoomMin, zoomMax, CONFIG, zoomable = true) {
   return lerpByLevel(CONFIG.ZOOM_ENEMY.ANCHOR_BY_LEVEL, zoomLevelOf(zoomMin, zoomMax, CONFIG))
 }
 
+// 海（背景）のカメラ。ズームが深いほど背景も拡大し、敵の横位置に応じて同方向へ流す
+// （パララックス）。ズーム補間中に敵が横へ滑ると海も一緒に流れ「カメラが敵に寄る」ように見える。
+export function seaCamera(zoomMin, zoomMax, enemyXFrac, CONFIG, zoomable = true) {
+  if (!zoomable) return { scale: 1, panFrac: 0 }
+  const level = zoomLevelOf(zoomMin, zoomMax, CONFIG)
+  return {
+    scale: lerpByLevel(CONFIG.ZOOM_SEA.SCALE_BY_LEVEL, level),
+    panFrac: (enemyXFrac - 0.5) * CONFIG.ZOOM_SEA.PAN_FACTOR,
+  }
+}
+
+// 背景画像から切り出すソース矩形。水平線（画像高さ horizon）を不動点に scale 倍へ拡大し、
+// panFrac（画像幅に対する割合）だけ横へずらす。等倍・パンなしなら現行の全面描画
+// （0 〜 imgH*crop）と完全一致。矩形は画像の端を超えないようクランプ（黒帯・引き伸ばし防止）。
+export function seaSourceRect(imgW, imgH, scale, panFrac, horizon = 0.53, crop = 0.96) {
+  const sw = imgW / scale
+  const sh = imgH * crop / scale
+  // canvas 上の水平線の割合（≈0.552）。ソース矩形内でも水平線がこの割合に来るよう sy を決める
+  const canvasHorizon = horizon / crop
+  let sy = imgH * horizon - canvasHorizon * sh
+  let sx = imgW / 2 + panFrac * imgW - sw / 2
+  sx = Math.min(Math.max(sx, 0), imgW - sw)
+  sy = Math.min(Math.max(sy, 0), imgH - sh)
+  return { sx, sy, sw, sh }
+}
+
 // この場面でズームが起きるか。測量フェーズで、かつ測量窓を持つランク（いっちょまえ以上）の
 // ときだけ true。みならいは measureMode:'full' で常に全体表示＝ズームが無い。
 // FIRE/RESULT は答え合わせのため常に全体表示に固定されている（game.js の fullView）。

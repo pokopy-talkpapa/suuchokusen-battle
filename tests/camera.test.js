@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { enemyCamScale, enemyAnchorFrac, isZoomableScene } from '../js/camera.js'
+import { enemyCamScale, enemyAnchorFrac, isZoomableScene, seaCamera, seaSourceRect } from '../js/camera.js'
 
 // テスト用の最小 CONFIG（実値に依存しないよう自前で持つ＝config調整で壊れない）
 const CFG = {
@@ -68,4 +68,41 @@ test('足元の高さはレベル別テーブルどおり＋中間は補間', ()
 
 test('足元: ズームの無い場面では STATIC_ANCHOR（水平線）固定', () => {
   assert.equal(enemyAnchorFrac(440, 450, CFG, false), 0.55)
+})
+
+test('海の拡大率はレベル別テーブルどおり', () => {
+  assert.equal(seaCamera(0, 1000, 0.5, CFG).scale, 1.0)
+  assert.equal(seaCamera(400, 500, 0.5, CFG).scale, 1.15)
+  assert.equal(seaCamera(440, 450, 0.5, CFG).scale, 1.3)
+})
+
+test('海のパン: 敵が中央なら0・右寄りなら正・左寄りなら負', () => {
+  assert.equal(seaCamera(440, 450, 0.5, CFG).panFrac, 0)
+  assert.ok(seaCamera(440, 450, 0.8, CFG).panFrac > 0)
+  assert.ok(seaCamera(440, 450, 0.2, CFG).panFrac < 0)
+})
+
+test('海: ズームの無い場面では等倍・パンなし', () => {
+  assert.deepEqual(seaCamera(440, 450, 0.8, CFG, false), { scale: 1, panFrac: 0 })
+})
+
+test('seaSourceRect: 等倍・パンなしは現行描画と同一（全幅・上端0・crop 0.96）', () => {
+  const r = seaSourceRect(2000, 1000, 1.0, 0)
+  assert.equal(r.sx, 0)
+  assert.equal(Math.round(r.sy), 0)
+  assert.equal(r.sw, 2000)
+  assert.equal(r.sh, 960)
+})
+
+test('seaSourceRect: 拡大しても水平線(画像53%)がソース矩形内の同じ割合(53/96)に居続ける', () => {
+  const r = seaSourceRect(2000, 1000, 1.3, 0)
+  const horizonFracInRect = (1000 * 0.53 - r.sy) / r.sh
+  assert.ok(Math.abs(horizonFracInRect - 0.53 / 0.96) < 1e-9)
+})
+
+test('seaSourceRect: 大きくパンしても画像の端を超えない', () => {
+  const r1 = seaSourceRect(2000, 1000, 1.3, 5)   // 極端な右パン
+  assert.ok(r1.sx >= 0 && r1.sx + r1.sw <= 2000)
+  const r2 = seaSourceRect(2000, 1000, 1.3, -5)  // 極端な左パン
+  assert.ok(r2.sx >= 0 && r2.sx + r2.sw <= 2000)
 })
