@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.48'
+export const VERSION = 'v1.49'
 
 export const CONFIG = {
   RULER: {
@@ -16,6 +16,19 @@ export const CONFIG = {
     LEVEL2: { tickStep: 10,  rangeWidth: 100  },
     // レベル3（望遠鏡）：20幅にズーム・1目盛り=5
     LEVEL3: { tickStep: 5,   rangeWidth: 20   },
+  },
+  // 敵の描画倍率のカメラ連動（ズーム演出）。全体ビューは小さなシルエット、
+  // ズームが深いほど大きく＝「目盛りの間にいる」が目で分かる。renderer が
+  // meta.scale に enemyCamScale() の戻り値を掛ける。実機で見ながら調整する定数。
+  // ※2026-07-05の実機FB「1段目で大きすぎると2段目の伸びしろが無くなる」は、
+  //   全体ビューを大胆に小さくすることで伸びしろを作り直す形で上書きした。
+  //   FULL_SCALE と MAX_SCALE の差が演出の効き幅そのものなので、詰めるときは両方を見る。
+  ZOOM_ENEMY: {
+    FULL_SCALE: 0.45,  // 全体ビュー（0〜1000）での倍率。1.0未満＝ちっぽけに始める
+    MAX_SCALE: 2.6,    // 最大ズーム時に近づく上限倍率（漸近。厳密な上限キャップではない）
+    CURVE: 0.6,        // ズーム段階に対する伸びの強さ（大きいほど早く大きくなる）
+    STATIC_SCALE: 1.0, // ズームが起きない場面での倍率。答え合わせ（FIRE/RESULT）と
+                       // ズームを持たないみならいの測量に使う。1.0＝この演出を入れる前と同じ大きさ
   },
   PHYSICS: {
     GRAVITY: 600,        // px/s^2
