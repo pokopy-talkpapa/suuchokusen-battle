@@ -1,7 +1,7 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
 import { VERSION } from './config.js'
-import { enemyCamScale } from './camera.js'
+import { enemyCamScale, isZoomableScene } from './camera.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
@@ -325,7 +325,7 @@ export class Renderer {
       const scale = meta.scale
       // ズームして見えている幅が狭いほど「敵に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
       // 全体ビューで小さく・ズームが深いほど大きい。倍率パラメータは CFG.ZOOM_ENEMY（camera.js）。
-      const camScale = enemyCamScale(state.zoomMin, state.zoomMax, CFG)
+      const camScale = enemyCamScale(state.zoomMin, state.zoomMax, CFG, isZoomableScene(state.phase, stg))
       const shipW = meta.w * scale * camScale
       const shipH = meta.h * scale * camScale
       // 海の構図：敵底が水平線（canvas上約55%）に乗るよう配置。空とぶ敵（air>0）はそこから浮かせる。
