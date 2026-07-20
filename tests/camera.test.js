@@ -106,3 +106,40 @@ test('seaSourceRect: 大きくパンしても画像の端を超えない', () =>
   const r2 = seaSourceRect(2000, 1000, 1.3, -5)  // 極端な左パン
   assert.ok(r2.sx >= 0 && r2.sx + r2.sw <= 2000)
 })
+
+// 月まん丸の保証：ソース矩形の縦横比が画面の縦横比と一致していれば、
+// drawImage で全面に貼っても絵は歪まない（画像内の円は円のまま）
+test('seaSourceRect: viewAspect指定時はソース矩形が画面と同じ縦横比（歪みゼロ）', () => {
+  for (const aspect of [2.16, 1.75, 0.5]) {
+    for (const scale of [1.0, 1.15, 1.3]) {
+      const r = seaSourceRect(2000, 1000, scale, 0, aspect)
+      assert.ok(Math.abs(r.sw / r.sh - aspect) < 1e-9, `aspect=${aspect} scale=${scale}`)
+    }
+  }
+})
+
+test('seaSourceRect: viewAspect指定時も水平線は画面の同じ高さ(53/96)に居続ける', () => {
+  for (const aspect of [2.16, 0.5]) {
+    const r = seaSourceRect(2000, 1000, 1.3, 0, aspect)
+    const horizonFracInRect = (1000 * 0.53 - r.sy) / r.sh
+    assert.ok(Math.abs(horizonFracInRect - 0.53 / 0.96) < 1e-9, `aspect=${aspect}`)
+  }
+})
+
+test('seaSourceRect: viewAspect指定時も矩形は画像内に収まる（極端なパン込み）', () => {
+  for (const aspect of [2.16, 0.5]) {
+    for (const pan of [0, 5, -5]) {
+      const r = seaSourceRect(2000, 1000, 1.3, pan, aspect)
+      assert.ok(r.sx >= -1e-9 && r.sx + r.sw <= 2000 + 1e-9, `sx aspect=${aspect} pan=${pan}`)
+      assert.ok(r.sy >= -1e-9 && r.sy + r.sh <= 1000 + 1e-9, `sy aspect=${aspect} pan=${pan}`)
+    }
+  }
+})
+
+test('seaSourceRect: viewAspect省略時は従来の全面描画と完全一致（後方互換）', () => {
+  const r = seaSourceRect(2000, 1000, 1.0, 0)
+  assert.equal(r.sx, 0)
+  assert.equal(Math.round(r.sy), 0)
+  assert.equal(r.sw, 2000)
+  assert.equal(r.sh, 960)
+})

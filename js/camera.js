@@ -52,12 +52,20 @@ export function seaCamera(zoomMin, zoomMax, enemyXFrac, CONFIG, zoomable = true)
 }
 
 // 背景画像から切り出すソース矩形。水平線（画像高さ horizon）を不動点に scale 倍へ拡大し、
-// panFrac（画像幅に対する割合）だけ横へずらす。等倍・パンなしなら現行の全面描画
-// （0 〜 imgH*crop）と完全一致。矩形は画像の端を超えないようクランプ（黒帯・引き伸ばし防止）。
-export function seaSourceRect(imgW, imgH, scale, panFrac, horizon = 0.53, crop = 0.96) {
+// panFrac（画像幅に対する割合）だけ横へずらす。矩形は画像の端を超えないようクランプ
+// （黒帯・引き伸ばし防止）。
+// viewAspect（画面の幅/高さ）を渡すと、ソース矩形を画面と同じ縦横比に切る＝全面に貼っても
+// 絵が歪まない（画像に描き込まれた月が楕円に潰れない）。はみ出す側は中央クロップで捨てる。
+// 省略時は従来どおり画像全幅×crop を画面へ引き伸ばす（後方互換）。
+export function seaSourceRect(imgW, imgH, scale, panFrac, viewAspect = null, horizon = 0.53, crop = 0.96) {
   const s = Math.max(1, scale) // 1未満はソース矩形が画像をはみ出しクランプが破綻するため等倍に落とす
-  const sw = imgW / s
-  const sh = imgH * crop / s
+  // viewAspect 省略時は従来の全面描画（全幅×crop を引き伸ばす）。指定時は
+  // 幅と高さのどちらが先に画像からはみ出すかで基準を決め、画面と同じ縦横比に切る
+  const wide = viewAspect ? imgW / viewAspect <= imgH * crop : true // 画面が画像より横長→全幅を使い縦を切る
+  const sw0 = wide ? imgW : imgH * crop * viewAspect
+  const sh0 = wide ? (viewAspect ? imgW / viewAspect : imgH * crop) : imgH * crop
+  const sw = sw0 / s
+  const sh = sh0 / s
   // canvas 上の水平線の割合（≈0.552）。ソース矩形内でも水平線がこの割合に来るよう sy を決める
   const canvasHorizon = horizon / crop
   let sy = imgH * horizon - canvasHorizon * sh

@@ -105,7 +105,9 @@ export class Renderer {
         // ズーム中は水平線を不動点に拡大＋敵の横位置に応じてパン（seaSourceRect が端をクランプ）
         const cam = seaCamera(state.zoomMin, state.zoomMax,
                               (state.enemyX ?? cv.width / 2) / cv.width, CFG, zoomable)
-        const r = seaSourceRect(bgImg.width, bgImg.height, cam.scale, cam.panFrac)
+        // 画面と同じ縦横比で切り出す＝引き伸ばしゼロ。夜の月が楕円に潰れない
+        const r = seaSourceRect(bgImg.width, bgImg.height, cam.scale, cam.panFrac,
+                                cv.width / cv.height)
         ctx.drawImage(bgImg, r.sx, r.sy, r.sw, r.sh, 0, 0, cv.width, cv.height)
       } else if (state.phase === 'TITLE') {
         // タイトル背景はアスペクト比を保って cover（はみ出す側を中央クロップ）。
