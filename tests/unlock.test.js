@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { UnlockState } from '../js/unlock.js'
 
-const CFG = { UNLOCK: { BINOCULARS_STREAK: 3, TELESCOPE_STREAK: 6, HIT_MARGIN_VALUE: 30 } }
+const CFG = { UNLOCK: { BINOCULARS_STREAK: 3, TELESCOPE_STREAK: 6, MABOROSHI_STREAK: 9, HIT_MARGIN_VALUE: 30 } }
 
 test('初期状態: level=1, streak=0, maxLevel=1', () => {
   const s = new UnlockState(CFG)
@@ -78,8 +78,32 @@ test('壊れた保存値: maxLevel=0 は 1 に丸める（チップ全🔒バグ
 })
 test('壊れた保存値: 文字列・NaN・範囲外は既定値/丸めで復元', () => {
   assert.equal(new UnlockState(CFG, { maxLevel: 'abc' }).maxLevel, 1)
-  assert.equal(new UnlockState(CFG, { maxLevel: 99 }).maxLevel, 3)
+  assert.equal(new UnlockState(CFG, { maxLevel: 99 }).maxLevel, 4)
   assert.equal(new UnlockState(CFG, { level: -5 }).level, 1)
   assert.equal(new UnlockState(CFG, { streak: -3 }).streak, 0)
   assert.equal(new UnlockState(CFG, { streak: '2' }).streak, 2)
+})
+
+// ── まぼろし（レベル4）解放ロジック ──
+test('でんせつ(maxLevel3)で9連続命中するとまぼろし(4)に昇格', () => {
+  const u = new UnlockState(CFG, { maxLevel: 3, streak: 8 })
+  u.recordHit(true, 3)
+  assert.equal(u.maxLevel, 4)
+})
+
+test('下位ランクで遊んでも9連続でまぼろしには上がらない（養殖防止）', () => {
+  const u = new UnlockState(CFG, { maxLevel: 3, streak: 8 })
+  u.recordHit(true, 1) // でんせつ解放済みなのに みならい で遊んだ
+  assert.equal(u.maxLevel, 3)
+  assert.equal(u.streak, 8) // カウントも動かない
+})
+
+test('maxLevel4 が保存・復元できる（clampが4を潰さない）', () => {
+  const u = new UnlockState(CFG, { maxLevel: 4, streak: 0 })
+  assert.equal(u.maxLevel, 4)
+})
+
+test('壊れた保存値は今までどおり丸める（5→4・0→1）', () => {
+  assert.equal(new UnlockState(CFG, { maxLevel: 5 }).maxLevel, 4)
+  assert.equal(new UnlockState(CFG, { maxLevel: 0 }).maxLevel, 1)
 })

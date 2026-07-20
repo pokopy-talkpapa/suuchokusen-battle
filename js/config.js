@@ -78,6 +78,7 @@ export const CONFIG = {
   UNLOCK: {
     BINOCULARS_STREAK: 3, // 双眼鏡（レベル2）解放に必要な連続命中数
     TELESCOPE_STREAK: 6,  // 望遠鏡（レベル3）解放に必要な連続命中数
+    MABOROSHI_STREAK: 9,  // まぼろし（レベル4）解放に必要な連続命中数（3→6→9の等差）
     HIT_MARGIN_VALUE: 30, // 着弾「命中」の許容誤差（value単位、0〜1000スケール）
   },
   // 段階＝連続命中ランク（みならい→いっちょまえ→でんせつ）。maxLevel 1/2/3 に対応・両モード共通。
