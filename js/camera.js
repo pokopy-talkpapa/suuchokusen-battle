@@ -55,8 +55,9 @@ export function seaCamera(zoomMin, zoomMax, enemyXFrac, CONFIG, zoomable = true)
 // panFrac（画像幅に対する割合）だけ横へずらす。等倍・パンなしなら現行の全面描画
 // （0 〜 imgH*crop）と完全一致。矩形は画像の端を超えないようクランプ（黒帯・引き伸ばし防止）。
 export function seaSourceRect(imgW, imgH, scale, panFrac, horizon = 0.53, crop = 0.96) {
-  const sw = imgW / scale
-  const sh = imgH * crop / scale
+  const s = Math.max(1, scale) // 1未満はソース矩形が画像をはみ出しクランプが破綻するため等倍に落とす
+  const sw = imgW / s
+  const sh = imgH * crop / s
   // canvas 上の水平線の割合（≈0.552）。ソース矩形内でも水平線がこの割合に来るよう sy を決める
   const canvasHorizon = horizon / crop
   let sy = imgH * horizon - canvasHorizon * sh

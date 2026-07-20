@@ -343,8 +343,9 @@ export class Renderer {
         : rulerY - shipH / 2
       let centerY = baseCenterY - airLift            // 静止時：空とぶ敵は水面から浮かせる
       // 安全装置：敵の上端が数直線に食い込むなら、すき間 TOP_MARGIN を保つ位置まで押し下げる。
-      // 過去FB「大きい船が目盛りを隠す」の再発防止はこのキャップが担う
-      if (seaView) {
+      // 過去FB「大きい船が目盛りを隠す」の再発防止はこのキャップが担う。
+      // ズームの無い場面（FIRE/RESULT・みならい）はキャップ対象外＝v1.49と完全互換
+      if (seaView && zoomable) {
         centerY = Math.max(centerY, rulerY + CFG.ZOOM_ENEMY.TOP_MARGIN + shipH / 2)
       }
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
