@@ -33,6 +33,13 @@ export function enemyCamScale(zoomMin, zoomMax, CONFIG, zoomable = true) {
   return lerpByLevel(CONFIG.ZOOM_ENEMY.BY_LEVEL, zoomLevelOf(zoomMin, zoomMax, CONFIG))
 }
 
+// 敵の足元（接地線）の画面高さ割合。全体ビューでは水平線（0.55）に乗り、近づくほど画面手前
+// （下）に構える遠近法で、数直線との間の余白を稼ぐ。renderer はこの割合×画面高さを足元にする。
+export function enemyAnchorFrac(zoomMin, zoomMax, CONFIG, zoomable = true) {
+  if (!zoomable) return CONFIG.ZOOM_ENEMY.STATIC_ANCHOR
+  return lerpByLevel(CONFIG.ZOOM_ENEMY.ANCHOR_BY_LEVEL, zoomLevelOf(zoomMin, zoomMax, CONFIG))
+}
+
 // この場面でズームが起きるか。測量フェーズで、かつ測量窓を持つランク（いっちょまえ以上）の
 // ときだけ true。みならいは measureMode:'full' で常に全体表示＝ズームが無い。
 // FIRE/RESULT は答え合わせのため常に全体表示に固定されている（game.js の fullView）。

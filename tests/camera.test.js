@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { enemyCamScale, isZoomableScene } from '../js/camera.js'
+import { enemyCamScale, enemyAnchorFrac, isZoomableScene } from '../js/camera.js'
 
 // テスト用の最小 CONFIG（実値に依存しないよう自前で持つ＝config調整で壊れない）
 const CFG = {
@@ -56,4 +56,16 @@ test('isZoomableScene: みならい（measureMode:full）の測量は false', ()
 test('isZoomableScene: 答え合わせ（FIRE/RESULT）は false', () => {
   assert.equal(isZoomableScene('FIRE', { measureMode: 'ten' }), false)
   assert.equal(isZoomableScene('RESULT', { measureMode: 'ten' }), false)
+})
+
+test('足元の高さはレベル別テーブルどおり＋中間は補間', () => {
+  assert.equal(enemyAnchorFrac(0, 1000, CFG), 0.55)   // 全体=水平線
+  assert.equal(enemyAnchorFrac(400, 500, CFG), 0.62)  // 100窓
+  assert.equal(enemyAnchorFrac(440, 450, CFG), 0.70)  // 10窓=手前(下)に構える
+  const mid = enemyAnchorFrac(420, 450, CFG)          // 30窓
+  assert.ok(mid > 0.62 && mid < 0.70, '中間は補間される')
+})
+
+test('足元: ズームの無い場面では STATIC_ANCHOR（水平線）固定', () => {
+  assert.equal(enemyAnchorFrac(440, 450, CFG, false), 0.55)
 })
