@@ -1,7 +1,7 @@
 // js/renderer.js
 import { valueToX, getTicks } from './ruler.js'
 import { VERSION } from './config.js'
-import { enemyCamScale, isZoomableScene } from './camera.js'
+import { enemyCamScale, enemyAnchorFrac, seaCamera, seaSourceRect, isZoomableScene } from './camera.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
@@ -82,6 +82,9 @@ export class Renderer {
     // 発射→着弾で画面が切り替わる違和感をなくすため FIRE も着弾シーンで描く。
     const seaView = state.phase === 'MEASURE' || state.phase === 'FIRE' || state.phase === 'RESULT'
     const rulerY = seaView ? Math.round(cv.height * 0.35) : this._rulerY()
+    // ズーム演出（敵の倍率・足元・海の寄り）が効く場面か。背景と敵ブロックの両方で使う
+    const stg = CFG.STAGES[state.stageIndex] || {}
+    const zoomable = isZoomableScene(state.phase, stg)
     // game.js から渡された rulerGeom（MEASURE は大砲先端起点）を優先、なければデフォルト
     const rsx = state.rulerGeom?.rsx ?? this._rulerSX()
     const rex = state.rulerGeom?.rex ?? this._rulerEX()
@@ -98,8 +101,12 @@ export class Renderer {
     const bgImg = this._imgs[bgName] || this._imgs['stage-bg'] || this._imgs['sea-bg']
     if (bgImg) {
       if (seaView) {
-        // sea-open.pngの水平線は画像高さ約53%。crop=0.96なら canvas上53/96≈55%に来る
-        ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height * 0.96, 0, 0, cv.width, cv.height)
+        // sea-open.pngの水平線は画像高さ約53%。crop=0.96なら canvas上53/96≈55%に来る。
+        // ズーム中は水平線を不動点に拡大＋敵の横位置に応じてパン（seaSourceRect が端をクランプ）
+        const cam = seaCamera(state.zoomMin, state.zoomMax,
+                              (state.enemyX ?? cv.width / 2) / cv.width, CFG, zoomable)
+        const r = seaSourceRect(bgImg.width, bgImg.height, cam.scale, cam.panFrac)
+        ctx.drawImage(bgImg, r.sx, r.sy, r.sw, r.sh, 0, 0, cv.width, cv.height)
       } else if (state.phase === 'TITLE') {
         // タイトル背景はアスペクト比を保って cover（はみ出す側を中央クロップ）。
         // 引き伸ばすと超横長の画面で絵が歪むため
@@ -318,23 +325,28 @@ export class Renderer {
     // 敵（RESULT＋命中時は撃沈／墜落アニメ／通常は静止）。ランクで敵が変わる：
     // みならい=海賊船（昼）/ いっちょまえ=小舟（夕方）/ でんせつ=ドローン（夜・空中）。
     if (state.showShip) {
-      const stg   = CFG.STAGES[state.stageIndex] || {}
       const spriteName = stg.enemySprite || 'ship-enemy'
       const meta  = (CFG.ENEMY.SPRITES && CFG.ENEMY.SPRITES[spriteName])
                     || { w: CFG.ENEMY.SHIP_WIDTH, h: CFG.ENEMY.SHIP_HEIGHT, scale: stg.enemyScale || 1, air: 0 }
       const scale = meta.scale
-      // ズームして見えている幅が狭いほど「敵に近づいた」ように大きく見せる（双眼鏡で寄る感覚）。
-      // 全体ビューで小さく・ズームが深いほど大きい。倍率パラメータは CFG.ZOOM_ENEMY（camera.js）。
-      const camScale = enemyCamScale(state.zoomMin, state.zoomMax, CFG, isZoomableScene(state.phase, stg))
+      // ズームして見えている幅が狭いほど「敵に近づいた」ように大きく・画面手前（下寄り）に見せる
+      // （双眼鏡で寄る感覚）。倍率・足元は CFG.ZOOM_ENEMY のレベル別テーブル（camera.js）。
+      const camScale = enemyCamScale(state.zoomMin, state.zoomMax, CFG, zoomable)
       const shipW = meta.w * scale * camScale
       const shipH = meta.h * scale * camScale
-      // 海の構図：敵底が水平線（canvas上約55%）に乗るよう配置。空とぶ敵（air>0）はそこから浮かせる。
-      // 水平線Y = imgHorizon(53%) / crop(0.96) → 55.2% ≈ 0.552H
+      // 海の構図：敵底を anchorFrac（全体=水平線0.55、近づくほど手前=下）に乗せる。
+      // 空とぶ敵（air>0）はそこから浮かせる。水平線Y = imgHorizon(53%) / crop(0.96) → 55.2%
+      const anchorFrac = enemyAnchorFrac(state.zoomMin, state.zoomMax, CFG, zoomable)
       const airLift = (meta.air || 0) * cv.height
       const baseCenterY = seaView
-        ? Math.round(cv.height * 0.55 - shipH * 0.5)   // 水面基準（浮かせない位置）
+        ? Math.round(cv.height * anchorFrac - shipH * 0.5)   // 足元基準（浮かせない位置）
         : rulerY - shipH / 2
-      const centerY = baseCenterY - airLift            // 静止時：空とぶ敵は水面から浮かせる
+      let centerY = baseCenterY - airLift            // 静止時：空とぶ敵は水面から浮かせる
+      // 安全装置：敵の上端が数直線に食い込むなら、すき間 TOP_MARGIN を保つ位置まで押し下げる。
+      // 過去FB「大きい船が目盛りを隠す」の再発防止はこのキャップが担う
+      if (seaView) {
+        centerY = Math.max(centerY, rulerY + CFG.ZOOM_ENEMY.TOP_MARGIN + shipH / 2)
+      }
       const sinking = state.phase === 'RESULT' && state.hitResult === 'HIT' && state.resultProgress != null
       if (sinking) {
         const p = state.resultProgress
