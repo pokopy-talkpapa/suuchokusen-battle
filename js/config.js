@@ -114,16 +114,17 @@ export const CONFIG = {
       enemyScale: 0.55,     // 序盤と同サイズに統一（2026-07-04実機FB）
       enemySprite: 'enemy-drone',  // 夜＝空とぶドローン（さらに小さく・空中）
     },
-    { // まぼろし：0〜10.0の小数表示で読む（内部値は0〜1000のまま÷100表示）。
+    { // まぼろし：0〜10の海で0.1を読む。内部は0〜1000のまま表示だけ÷100（設計書§2.2）。
+      // 遊びの構造はいっちょまえと相似形：全体(1目盛り)→1の窓(0.1目盛り)。照準はでんせつ流用。
       name: 'まぼろしの砲手',
-      measureMode: 'ten',      // 測量は target を含む10窓（一の目盛り）
-      measureTickStep: 1,
-      targetStep: 10,          // 正解は0.1（raw:10）の倍数
+      measureMode: 'hundred',  // 内部100窓＝表示「1の窓」（0.1目盛り）
+      measureTickStep: 10,     // 内部10＝表示0.1
+      targetStep: 10,          // 正解は内部10の倍数＝表示0.1刻み（例: 340→3.4）
       aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
-      hitMargin: 7,
+      hitMargin: 14,           // 仮置き（でんせつと同値）。実機でぽこぴぃ調整
       enemyScale: 0.55,
-      enemySprite: 'enemy-drone',
-      display: { divisor: 100, decimals: 1 }, // 数直線の読み値を÷100で小数表示
+      enemySprite: 'enemy-drone',  // 仮素材。フェーズ3でミクロ敵（画像生成）に差し替え
+      display: { divisor: 100, decimals: 1 }, // 表示変換層（js/display.js）のスイッチ
     },
   ],
   ENEMY: {
