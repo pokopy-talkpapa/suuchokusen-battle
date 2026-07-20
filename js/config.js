@@ -17,6 +17,14 @@ export const CONFIG = {
     // レベル3（望遠鏡）：20幅にズーム・1目盛り=5
     LEVEL3: { tickStep: 5,   rangeWidth: 20   },
   },
+  // 敵の描画倍率のカメラ連動（ズーム演出）。全体ビューは小さなシルエット、
+  // ズームが深いほど大きく＝「目盛りの間にいる」が目で分かる。renderer が
+  // meta.scale に enemyCamScale() の戻り値を掛ける。実機で見ながら調整する定数。
+  ZOOM_ENEMY: {
+    FULL_SCALE: 0.45,  // 全体ビュー（0〜1000）での倍率。1.0未満＝ちっぽけに始める
+    MAX_SCALE: 2.6,    // 最大ズーム時に近づく上限倍率
+    CURVE: 0.6,        // ズーム段階に対する伸びの強さ（大きいほど早く大きくなる）
+  },
   PHYSICS: {
     GRAVITY: 600,        // px/s^2
     MAX_POWER: 800,      // px/s（最大ドラッグ量に対応）
