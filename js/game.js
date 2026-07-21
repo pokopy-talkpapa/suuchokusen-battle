@@ -1,5 +1,6 @@
 // js/game.js
 import { CONFIG, VERSION } from './config.js'
+import { formatRulerValue, parseDisplayInput } from './display.js'
 import { valueToX, xToValue, getMeasureWindow, zoomWindowAt } from './ruler.js'
 import { arcPoints } from './physics.js'
 import { generateTargetInsideWindow, judgeHit, measureAidLevel } from './measurement.js'
@@ -185,7 +186,7 @@ class Game {
     return Math.max(1, Math.min(this._playLevel ?? max, max))
   }
 
-  // タイトルのランク選択チップ3つの矩形（_titleLayout 参照・単一の真実）
+  // タイトルのランク選択チップ4つの矩形（_titleLayout 参照・単一の真実）
   _rankChipRects() { return this._titleLayout().chips }
 
   // モード選択の2ボタン矩形（_titleLayout 参照・単一の真実）
@@ -219,11 +220,12 @@ class Game {
     const bh = Math.max(84, 124 * s)
     const half = Math.min(W * 0.23, 320)
 
-    // ランクチップ：3つとも同幅（いちばん長いラベルに合わせる）。🔒表示のほうが長い場合も考慮
+    // ランクチップ：4つとも同幅（いちばん長いラベルに合わせる）。🔒表示のほうが長い場合も考慮
     // ☀️(U+2600+FE0F)はiOS Safariのcanvasで幅計算がずれて文字が右に流れる（2026-07-07実機FB）。
     // 修飾コードなしの1文字絵文字🌞に固定する。ここに新しい絵文字を足すときも1文字ものを選ぶこと
-    const chipLabels       = ['🌞 みならい', '🌇 いっちょまえ', '🌙 でんせつ']
-    const chipLockedLabels = ['🔒 みならい', '🔒 いっちょまえ', '🔒 でんせつ']
+    const chipLabels       = ['🌞 みならい', '🌇 いっちょまえ', '🌙 でんせつ', '✨ まぼろし']
+    const chipLockedLabels = ['🔒 みならい', '🔒 いっちょまえ', '🔒 でんせつ', '🔒 まぼろし']
+    const chipCount = chipLabels.length
     ctx.font = `bold ${fonts.chip}px sans-serif`
     let chipTextW = 0
     for (const t of [...chipLabels, ...chipLockedLabels]) {
@@ -231,10 +233,10 @@ class Game {
     }
     const chipGap = Math.max(8, 12 * s)
     let chipW = Math.ceil(chipTextW) + 2 * Math.max(10, Math.round(14 * s))
-    // 3つ横並びが画面幅に収まらないときはフォントごと縮めて収める
+    // 4つ横並びが画面幅に収まらないときはフォントごと縮めて収める
     const maxRow = W - 28
-    if (chipW * 3 + chipGap * 2 > maxRow) {
-      const k = (maxRow - chipGap * 2) / (chipW * 3)
+    if (chipW * chipCount + chipGap * (chipCount - 1) > maxRow) {
+      const k = (maxRow - chipGap * (chipCount - 1)) / (chipW * chipCount)
       chipW = Math.floor(chipW * k)
       fonts.chip = Math.max(11, Math.floor(fonts.chip * k))
     }
@@ -259,8 +261,8 @@ class Game {
       beginner: { x: cx1 - bw / 2, y: btnTop + offset, w: bw, h: bh },
       expert:   { x: cx2 - bw / 2, y: btnTop + offset, w: bw, h: bh },
     }
-    const x0 = W / 2 - (chipW * 3 + chipGap * 2) / 2
-    const chips = [0, 1, 2].map(i => ({ x: x0 + i * (chipW + chipGap), y: chipY + offset, w: chipW, h: chipH }))
+    const x0 = W / 2 - (chipW * chipCount + chipGap * (chipCount - 1)) / 2
+    const chips = Array.from({ length: chipCount }, (_, i) => ({ x: x0 + i * (chipW + chipGap), y: chipY + offset, w: chipW, h: chipH }))
 
     // 下段の枠幅は入る文字（長いほうの表記）から導出
     ctx.font = `bold ${fonts.bottom}px sans-serif`
@@ -343,8 +345,8 @@ class Game {
 
     return {
       phase:          this._phase,
-      // ランクで時間帯が進む演出：みならい=昼 / いっちょまえ=夕方 / でんせつ=夜
-      timeOfDay:      ['day', 'evening', 'night'][this._stageIndex] || 'day',
+      // ランクで時間帯が進む演出：みならい=昼 / いっちょまえ=夕方 / でんせつ=夜 / まぼろし=夜(仮・フェーズ3でミクロの海背景に差し替え)
+      timeOfDay:      ['day', 'evening', 'night', 'night'][this._stageIndex] || 'day',
       zoomMin:        vMin,
       zoomMax:        vMax,
       tickStep:       vTick,
@@ -379,7 +381,7 @@ class Game {
       buttonRects:    this._phase === 'AIM' ? this._buttonRects() : null, // ボタン矩形の単一の真実
       canZoom:        this._phase === 'AIM' && this._stage.aim.zoomable,
       memo:           (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
-                       && this._phase === 'AIM') ? String(this._measuredValue) : null,
+                       && this._phase === 'AIM') ? formatRulerValue(this._measuredValue, this._stage) : null,
       firedArc:       this._firedArc,
       fireProgress:   (this._phase === 'FIRE' && this._fireStart != null)
                         ? Math.min(1, (performance.now() - this._fireStart) / this._fireDuration) : null,
@@ -593,8 +595,9 @@ class Game {
     // テンキー（初級のみ＝読んだ数を入力してメモにする）
     if (CONFIG.MODES[this._mode].showNumpad) {
       this._numpad.reset()
+      this._numpad.setDecimalMode(!!this._stage.display) // まぼろしだけ小数点キー
       this._numpad.show()
-      this._numpad.onSubmit((val) => this._submitMeasure(val))
+      this._numpad.onSubmit((str) => this._submitMeasure(parseDisplayInput(str, this._stage)))
     } else {
       this._numpad.hide()
     }
@@ -728,6 +731,7 @@ class Game {
 
   _submitMeasure(val) {
     if (this._phase !== 'MEASURE') return
+    if (val == null) return // 打ちかけ・不正入力は無反応（空文字OKと同じ扱い）
     // 読まずに適当な数字を打っても通ってしまわないよう、実際にその位置にある正解と一致しない限り先へ進めない。
     // ズームで見えている範囲は必ず正解がぴったり目盛りに乗る深さなので、正しく読めていれば必ず一致するはず。
     if (val !== this._targetValue) {

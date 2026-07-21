@@ -28,6 +28,14 @@ const RANKUP_CARDS = {
       '🏆 「<b>おぼえてうつ</b>」モードも かいほう！',
     ],
   },
+  4: {
+    img: 'assets/enemy-drone.webp',
+    title: 'まぼろしの砲手に ランクアップ！',
+    body: [
+      '3と 4の あいだ… そこには まだ <b>かずの うみ</b>が かくれている！',
+      '🔍 ズームして <b>3.4</b> みたいな <b>しょうすう</b>を よもう！',
+    ],
+  },
 }
 
 export class Tutorial {

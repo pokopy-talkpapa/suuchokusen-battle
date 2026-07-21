@@ -1,5 +1,5 @@
 // js/config.js
-export const VERSION = 'v1.52'
+export const VERSION = 'v1.53'
 
 export const CONFIG = {
   RULER: {
@@ -78,6 +78,7 @@ export const CONFIG = {
   UNLOCK: {
     BINOCULARS_STREAK: 3, // 双眼鏡（レベル2）解放に必要な連続命中数
     TELESCOPE_STREAK: 6,  // 望遠鏡（レベル3）解放に必要な連続命中数
+    MABOROSHI_STREAK: 9,  // まぼろし（レベル4）解放に必要な連続命中数（3→6→9の等差）
     HIT_MARGIN_VALUE: 30, // 着弾「命中」の許容誤差（value単位、0〜1000スケール）
   },
   // 段階＝連続命中ランク（みならい→いっちょまえ→でんせつ）。maxLevel 1/2/3 に対応・両モード共通。
@@ -112,6 +113,18 @@ export const CONFIG = {
       hitMargin: 14,
       enemyScale: 0.55,     // 序盤と同サイズに統一（2026-07-04実機FB）
       enemySprite: 'enemy-drone',  // 夜＝空とぶドローン（さらに小さく・空中）
+    },
+    { // まぼろし：0〜10の海で0.1を読む。内部は0〜1000のまま表示だけ÷100（設計書§2.2）。
+      // 遊びの構造はいっちょまえと相似形：全体(1目盛り)→1の窓(0.1目盛り)。照準はでんせつ流用。
+      name: 'まぼろしの砲手',
+      measureMode: 'hundred',  // 内部100窓＝表示「1の窓」（0.1目盛り）
+      measureTickStep: 10,     // 内部10＝表示0.1
+      targetStep: 10,          // 正解は内部10の倍数＝表示0.1刻み（例: 340→3.4）
+      aim: { tickStep: 100, zoomable: true, zoomTickStep: 10 },
+      hitMargin: 14,           // 仮置き（でんせつと同値）。実機でぽこぴぃ調整
+      enemyScale: 0.55,
+      enemySprite: 'enemy-drone',  // 仮素材。フェーズ3でミクロ敵（画像生成）に差し替え
+      display: { divisor: 100, decimals: 1 }, // 表示変換層（js/display.js）のスイッチ
     },
   ],
   ENEMY: {

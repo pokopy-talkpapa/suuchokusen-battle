@@ -14,6 +14,7 @@ export function currentStage(maxLevel, CONFIG) {
 export function nextRankNeed(maxLevel, CONFIG) {
   if (maxLevel <= 1) return CONFIG.UNLOCK.BINOCULARS_STREAK
   if (maxLevel === 2) return CONFIG.UNLOCK.TELESCOPE_STREAK
+  if (maxLevel === 3) return CONFIG.UNLOCK.MABOROSHI_STREAK
   return null
 }
 

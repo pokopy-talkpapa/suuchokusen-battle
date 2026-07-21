@@ -53,6 +53,10 @@
     }
     #numpad button#btn-clear { background: #8a2a2a; }
     #numpad button#btn-ok    { background: #2a8a4a; }
+    #numpad.decimal { grid-template-columns: repeat(7, 44px); }
+    #numpad button#btn-dot { display: none; background: #2a5a8a; }
+    #numpad.decimal button#btn-dot { display: block; }
+    #numpad.decimal button[data-digit="6"] { grid-column-start: 1; }
     #display-input {
       position: absolute;
       z-index: 11;
@@ -249,6 +253,7 @@
       <button data-digit="8">8</button>
       <button data-digit="9">9</button>
       <button data-digit="0">0</button>
+      <button id="btn-dot">.</button>
       <button id="btn-ok">OK</button>
     </div>
     <button id="tutorial-open-btn">📖 あそびかた</button>

@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'suuchokusen_unlock_v1'
 
-// 保存データは壊れている前提で読む：数値でなければ既定値、範囲外は 1〜3 / 0以上 に丸める。
+// 保存データは壊れている前提で読む：数値でなければ既定値、範囲外は 1〜4 / 0以上 に丸める。
 // （壊れた値をそのまま使うと「ランクチップが全部🔒」のような復元困難な見た目バグになる）
 function clampInt(v, min, max, fallback) {
   const n = Math.trunc(Number(v))
@@ -11,23 +11,25 @@ function clampInt(v, min, max, fallback) {
 export class UnlockState {
   constructor(CONFIG, { level = 1, streak = 0, maxLevel = 1 } = {}) {
     this.CONFIG   = CONFIG
-    this.level    = clampInt(level, 1, 3, 1)
+    this.level    = clampInt(level, 1, 4, 1)
     this.streak   = clampInt(streak, 0, Number.MAX_SAFE_INTEGER, 0)
-    this.maxLevel = clampInt(maxLevel, 1, 3, 1)
+    this.maxLevel = clampInt(maxLevel, 1, 4, 1)
   }
 
   isUnlocked(n) {
     return this.maxLevel >= n
   }
 
-  // playLevel＝いま遊んだランク（1〜3）。解放済みの最上位ランクで遊んだときだけカウントを動かす。
+  // playLevel＝いま遊んだランク（1〜4）。解放済みの最上位ランクで遊んだときだけカウントを動かす。
   // 下のランクで遊ぶのは自由練習＝加算もリセットもしない（やさしい段で連続命中を稼ぐ「養殖」の防止）。
   recordHit(isHit, playLevel = null) {
     if (playLevel != null && playLevel < this.maxLevel) return
     if (isHit) {
       this.streak++
-      const { BINOCULARS_STREAK, TELESCOPE_STREAK } = this.CONFIG.UNLOCK
-      if (this.streak >= TELESCOPE_STREAK && this.maxLevel < 3) {
+      const { BINOCULARS_STREAK, TELESCOPE_STREAK, MABOROSHI_STREAK } = this.CONFIG.UNLOCK
+      if (this.streak >= MABOROSHI_STREAK && this.maxLevel < 4) {
+        this.maxLevel = 4
+      } else if (this.streak >= TELESCOPE_STREAK && this.maxLevel < 3) {
         this.maxLevel = 3
       } else if (this.streak >= BINOCULARS_STREAK && this.maxLevel < 2) {
         this.maxLevel = 2
