@@ -1,5 +1,6 @@
 // js/game.js
 import { CONFIG, VERSION } from './config.js'
+import { formatRulerValue, parseDisplayInput } from './display.js'
 import { valueToX, xToValue, getMeasureWindow, zoomWindowAt } from './ruler.js'
 import { arcPoints } from './physics.js'
 import { generateTargetInsideWindow, judgeHit, measureAidLevel } from './measurement.js'
@@ -593,8 +594,9 @@ class Game {
     // テンキー（初級のみ＝読んだ数を入力してメモにする）
     if (CONFIG.MODES[this._mode].showNumpad) {
       this._numpad.reset()
+      this._numpad.setDecimalMode(!!this._stage.display) // まぼろしだけ小数点キー
       this._numpad.show()
-      this._numpad.onSubmit((val) => this._submitMeasure(val))
+      this._numpad.onSubmit((str) => this._submitMeasure(parseDisplayInput(str, this._stage)))
     } else {
       this._numpad.hide()
     }
@@ -728,6 +730,7 @@ class Game {
 
   _submitMeasure(val) {
     if (this._phase !== 'MEASURE') return
+    if (val == null) return // 打ちかけ・不正入力は無反応（空文字OKと同じ扱い）
     // 読まずに適当な数字を打っても通ってしまわないよう、実際にその位置にある正解と一致しない限り先へ進めない。
     // ズームで見えている範囲は必ず正解がぴったり目盛りに乗る深さなので、正しく読めていれば必ず一致するはず。
     if (val !== this._targetValue) {

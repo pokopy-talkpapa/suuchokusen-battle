@@ -6,6 +6,7 @@ export class Numpad {
     this._value   = ''
     this._onSubmit = null
     this._onPress  = null
+    this._decimalMode = false
     this._bind()
   }
 
@@ -18,9 +19,14 @@ export class Numpad {
         this._value = this._value.slice(0, -1)
       } else if (btn.id === 'btn-ok') {
         if (this._value !== '' && this._onSubmit) {
-          this._onSubmit(parseInt(this._value, 10))
+          this._onSubmit(this._value) // 生の文字列を渡す。数値化は呼び側（表示変換層）の仕事
         }
         return
+      } else if (btn.id === 'btn-dot') {
+        // 小数点は1つまで。先頭で押したら「0.」から始める
+        if (this._decimalMode && !this._value.includes('.') && this._value.length < 4) {
+          this._value = this._value === '' ? '0.' : this._value + '.'
+        }
       } else {
         const d = btn.dataset.digit
         if (d !== undefined && this._value.length < 4) {
@@ -53,6 +59,12 @@ export class Numpad {
   // チュートリアルガイド中：「今ここを押す」を光る枠で示す
   setHighlight(on) {
     this._el.classList.toggle('tutorial-focus', on)
+  }
+
+  // まぼろしランクだけ小数点キーを出す（stage.display の有無で呼び側が切り替える）
+  setDecimalMode(on) {
+    this._decimalMode = !!on
+    this._el.classList.toggle('decimal', !!on)
   }
 
   // 読み間違い（正解と違う数字を書いてしまった）の視覚フィードバック。文字は出さず色と揺れだけで伝える。
