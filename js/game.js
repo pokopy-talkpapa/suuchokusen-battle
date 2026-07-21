@@ -186,7 +186,7 @@ class Game {
     return Math.max(1, Math.min(this._playLevel ?? max, max))
   }
 
-  // タイトルのランク選択チップ3つの矩形（_titleLayout 参照・単一の真実）
+  // タイトルのランク選択チップ4つの矩形（_titleLayout 参照・単一の真実）
   _rankChipRects() { return this._titleLayout().chips }
 
   // モード選択の2ボタン矩形（_titleLayout 参照・単一の真実）
