@@ -380,7 +380,7 @@ class Game {
       buttonRects:    this._phase === 'AIM' ? this._buttonRects() : null, // ボタン矩形の単一の真実
       canZoom:        this._phase === 'AIM' && this._stage.aim.zoomable,
       memo:           (CONFIG.MODES[this._mode].showMemo && this._measuredValue != null
-                       && this._phase === 'AIM') ? String(this._measuredValue) : null,
+                       && this._phase === 'AIM') ? formatRulerValue(this._measuredValue, this._stage) : null,
       firedArc:       this._firedArc,
       fireProgress:   (this._phase === 'FIRE' && this._fireStart != null)
                         ? Math.min(1, (performance.now() - this._fireStart) / this._fireDuration) : null,

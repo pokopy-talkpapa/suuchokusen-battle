@@ -2,6 +2,7 @@
 import { valueToX, getTicks } from './ruler.js'
 import { VERSION } from './config.js'
 import { enemyCamScale, enemyAnchorFrac, seaCamera, seaSourceRect, isZoomableScene } from './camera.js'
+import { formatRulerValue } from './display.js'
 
 const ASSET_NAMES = ['sea-bg', 'cannon', 'cannonball', 'ship-enemy', 'splash', 'ruler-bg', 'island',
                      'ship-sink-1', 'ship-sink-2', 'ship-sink-3', 'binocular-frame', 'aim-panel',
@@ -313,13 +314,13 @@ export class Renderer {
             // 端の真上にセンタリング。画面からはみ出す分だけ内側へ寄せる
             ctx.font = 'bold 26px sans-serif'
             ctx.textAlign = 'center'
-            const hw = ctx.measureText(String(value)).width / 2
+            const hw = ctx.measureText(formatRulerValue(value, stg)).width / 2
             const lx = Math.max(6 + hw, Math.min(cv.width - 6 - hw, x))
             ctx.lineWidth = 6
             ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-            ctx.strokeText(String(value), lx, rulerY - 36)
+            ctx.strokeText(formatRulerValue(value, stg), lx, rulerY - 36)
             ctx.fillStyle = '#3C2415' // 白フチ＋濃色は夜の空でもそのまま読める
-            ctx.fillText(String(value), lx, rulerY - 36)
+            ctx.fillText(formatRulerValue(value, stg), lx, rulerY - 36)
           })
         }
     }
@@ -417,7 +418,7 @@ export class Renderer {
         ctx.lineWidth = isMajor ? 2 : 1
         ctx.beginPath(); ctx.moveTo(tx, y - tH / 2); ctx.lineTo(tx, y + tH / 2); ctx.stroke()
         // 数字は線の下側（上側だと針のつまみと重なって読めない）
-        if (isMajor) ctx.fillText(String(value), tx, y + tH / 2 + labelDy)
+        if (isMajor) ctx.fillText(formatRulerValue(value, stg), tx, y + tH / 2 + labelDy)
       })
 
       // 針（つまみ）
@@ -539,9 +540,9 @@ export class Renderer {
           ctx.textAlign = 'center'
           ctx.lineWidth = 5
           ctx.strokeStyle = 'rgba(0,0,0,0.55)'
-          ctx.strokeText(`${state.resultGap} ずれた`, tx, rulerY + 38)
+          ctx.strokeText(`${formatRulerValue(state.resultGap, stg)} ずれた`, tx, rulerY + 38)
           ctx.fillStyle = '#ffdd00'
-          ctx.fillText(`${state.resultGap} ずれた`, tx, rulerY + 38)
+          ctx.fillText(`${formatRulerValue(state.resultGap, stg)} ずれた`, tx, rulerY + 38)
         }
 
         // 旗（ねらうべき場所＝正解値の真上）。ロゴ色のオレンジ＋こげ茶の棒
@@ -678,10 +679,10 @@ export class Renderer {
         if (fading) {
           // 表示位置は補間中の value（=state.zoomMin/Max）で計算しつつ、文字は確定した整数のfrom/toだけを使う。
           // 補間中の半端な小数（例:222.42…）をそのまま文字にすると「ランダムな数字」に見えてしまうため。
-          drawEdgeLabel(value, String(from), 1 - state.zoomAnimT)
-          drawEdgeLabel(value, String(to), state.zoomAnimT)
+          drawEdgeLabel(value, formatRulerValue(from, stg), 1 - state.zoomAnimT)
+          drawEdgeLabel(value, formatRulerValue(to, stg), state.zoomAnimT)
         } else {
-          drawEdgeLabel(value, String(value), 1)
+          drawEdgeLabel(value, formatRulerValue(value, stg), 1)
         }
       })
 
@@ -698,9 +699,9 @@ export class Renderer {
         ctx.textAlign = 'center'
         ctx.lineWidth = 5
         ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.strokeText(String(v), x, rulerY + 44)
+        ctx.strokeText(formatRulerValue(v, stg), x, rulerY + 44)
         ctx.fillStyle = '#F7931E'
-        ctx.fillText(String(v), x, rulerY + 44)
+        ctx.fillText(formatRulerValue(v, stg), x, rulerY + 44)
         ctx.restore()
       }
     }
