@@ -220,11 +220,12 @@ class Game {
     const bh = Math.max(84, 124 * s)
     const half = Math.min(W * 0.23, 320)
 
-    // ランクチップ：3つとも同幅（いちばん長いラベルに合わせる）。🔒表示のほうが長い場合も考慮
+    // ランクチップ：4つとも同幅（いちばん長いラベルに合わせる）。🔒表示のほうが長い場合も考慮
     // ☀️(U+2600+FE0F)はiOS Safariのcanvasで幅計算がずれて文字が右に流れる（2026-07-07実機FB）。
     // 修飾コードなしの1文字絵文字🌞に固定する。ここに新しい絵文字を足すときも1文字ものを選ぶこと
-    const chipLabels       = ['🌞 みならい', '🌇 いっちょまえ', '🌙 でんせつ']
-    const chipLockedLabels = ['🔒 みならい', '🔒 いっちょまえ', '🔒 でんせつ']
+    const chipLabels       = ['🌞 みならい', '🌇 いっちょまえ', '🌙 でんせつ', '✨ まぼろし']
+    const chipLockedLabels = ['🔒 みならい', '🔒 いっちょまえ', '🔒 でんせつ', '🔒 まぼろし']
+    const chipCount = chipLabels.length
     ctx.font = `bold ${fonts.chip}px sans-serif`
     let chipTextW = 0
     for (const t of [...chipLabels, ...chipLockedLabels]) {
@@ -232,10 +233,10 @@ class Game {
     }
     const chipGap = Math.max(8, 12 * s)
     let chipW = Math.ceil(chipTextW) + 2 * Math.max(10, Math.round(14 * s))
-    // 3つ横並びが画面幅に収まらないときはフォントごと縮めて収める
+    // 4つ横並びが画面幅に収まらないときはフォントごと縮めて収める
     const maxRow = W - 28
-    if (chipW * 3 + chipGap * 2 > maxRow) {
-      const k = (maxRow - chipGap * 2) / (chipW * 3)
+    if (chipW * chipCount + chipGap * (chipCount - 1) > maxRow) {
+      const k = (maxRow - chipGap * (chipCount - 1)) / (chipW * chipCount)
       chipW = Math.floor(chipW * k)
       fonts.chip = Math.max(11, Math.floor(fonts.chip * k))
     }
@@ -260,8 +261,8 @@ class Game {
       beginner: { x: cx1 - bw / 2, y: btnTop + offset, w: bw, h: bh },
       expert:   { x: cx2 - bw / 2, y: btnTop + offset, w: bw, h: bh },
     }
-    const x0 = W / 2 - (chipW * 3 + chipGap * 2) / 2
-    const chips = [0, 1, 2].map(i => ({ x: x0 + i * (chipW + chipGap), y: chipY + offset, w: chipW, h: chipH }))
+    const x0 = W / 2 - (chipW * chipCount + chipGap * (chipCount - 1)) / 2
+    const chips = Array.from({ length: chipCount }, (_, i) => ({ x: x0 + i * (chipW + chipGap), y: chipY + offset, w: chipW, h: chipH }))
 
     // 下段の枠幅は入る文字（長いほうの表記）から導出
     ctx.font = `bold ${fonts.bottom}px sans-serif`
